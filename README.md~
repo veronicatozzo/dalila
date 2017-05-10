@@ -42,5 +42,7 @@ the penalties on **C** and **D** can be of different types an precisely we offer
 
 Cross-validation
 ----------------
-The library contains a procedure to analyse which is the best number of atoms to decompose the signal matrix and which are the best regularization parameters.
-In an unsupervised case cross-validation is performed on BIC (Bayesian Information Criterion) value computed on the reconstruction error.
+The library contains a procedure to analyse, on both problems, which is the best number of atoms to decompose the signal matrix.
+In an unsupervised case cross-validation is performed on BIC (Bayesian Information Criterion) value computed on the reconstruction error
+while in the supervised case cross-validation is performed on the classification/regression error obtained by predicting the **y** of a test set
+after the computation of the coefficients with the dictionary fixed.
