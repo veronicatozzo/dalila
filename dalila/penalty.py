@@ -4,6 +4,8 @@ import numpy as np
 import sys
 from itertools import product
 
+#TODO: fare il controllo dei parametri appena viene chiamato qualcosa, decidi dove
+
 
 class Penalty:
     """
@@ -52,7 +54,7 @@ class L1Penalty(Penalty):
     ----------
 
     _lambda: float
-    The regularization value. Allawed values are between 0 and 1.
+    The regularization value. Allawed values are higher than 0.
 
     """
 
@@ -92,13 +94,13 @@ class L2Penalty(Penalty):
         ----------
 
         _lambda: float
-        The regularization value. Allowed values are between 0 and 1.
+        The regularization value. Allowed values are higher than 0.
 
         """
 
     def __init__(self, _lambda):
-        if _lambda < 0 or _lambda > 1:
-            print('\033[1;31m Wrong value for the l2 penalty.\033[1;m')
+        if _lambda < 0:
+            print('\033[1;31m Wrong value for the l2 penalty.\033[1;m') #TODO: metti log
             sys.exit(0)
 
         self._lambda = _lambda
@@ -223,3 +225,54 @@ class L0Penalty(Penalty):
     def value(self, x):
         return self.s
 
+
+class GroupLassoPenalty(Penalty):
+    """
+        Class representing Group Lasso penalty.
+
+        The prox operator in case of 2D matrix will be applied rowwise.
+
+        Parameters
+        ----------
+
+        _groups: list of int
+        List of the groups in which subdivide the considered feature space.
+        There cannot be overlaps.
+
+        _lambda: float
+        The regularization value. Allawed values are higher than 0.
+
+        """
+
+    def __init__(self, _groups, _lambda):
+        self._groups = _groups
+        self._lambda = _lambda
+
+    def apply_prox_operator(self, x, gamma):
+        new_x = np.zeros_like(x)
+        for r in range(0, x.shape[0]):
+            for g in self._groups:
+                new_x[r, g] = self.prox_operator(x[r, g], gamma)
+        return new_x
+
+    def prox_operator(self, x, gamma):
+        if np.linalg.norm(x) < self._lambda:
+            return np.zeros_like(x)
+        x *= (1 - self._lambda/np.linalg.norm(x))
+        return x
+
+    def make_grid(self, low=0, high=1, number=5):
+        values = np.linspace(low, high, number)
+        l = [GroupLassoPenalty(self._groups, v) for v in values]
+        return l
+
+    def __str__(self):
+        return "GroupLassoPenalty( " \
+               + str(self._groups) + str(self._lambda) + ")"
+
+    def value(self, x):
+        res = 0
+        for r in range(x.shape[0]):
+            for g in self._groups:
+                res += np.linalg.norm(x[r, g])
+        return self._lambda * res

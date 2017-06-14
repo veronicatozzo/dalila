@@ -4,7 +4,7 @@ from sklearn.utils import check_random_state
 import numpy as np
 
 
-class MonteCarloBootstrap(BaseShuffleSplit):
+class MonteCarloBootstrap(BaseShuffleSplit):    #TODO: documentazione
     """Random permutation cross-validator
     Yields indices to split data into training and test sets.
     Note: contrary to other cross-validation strategies, random splits

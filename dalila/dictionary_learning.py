@@ -64,7 +64,7 @@ class DictionaryLearning(BaseEstimator):
 
        """
 
-    def __init__(self, k, dict_penalty=None,  coeff_penalty=None,
+    def __init__(self, k, dict_penalty=None, coeff_penalty=None,
                  dict_normalization=0, non_negativity='none',
                  random_state=None):
 
@@ -234,9 +234,8 @@ class DictionaryLearning(BaseEstimator):
         """
         if self.X is None:
             return float("-inf")
-        n = self.X.shape[0]
-        return - (self.k * np.log(n) + 2 *
-                  (np.linalg.norm(self.X - self.C.dot(self.D))))
+        return - (np.log(self.X.shape[0])*np.log(self.k) \
+                    + 2.3*np.log(self.objective_function_value()))
 
     def _alternating_minimization(self, random_state,  n_iter=20000,
                                   backtracking=0):
@@ -249,7 +248,7 @@ class DictionaryLearning(BaseEstimator):
 
         gamma_c = 1.1
         gamma_d = gamma_c
-        step_c, step_d = _step_lipschitz(d, c,
+        step_d, step_c = _step_lipschitz(d, c,
                                          gamma_d=gamma_d, gamma_c=gamma_c)
         epsilon = 1e-4
         objective = self.objective_function_value(d=d, c=c)
@@ -636,7 +635,7 @@ class ShiftInvariantDL(BaseEstimator):
 def _step_lipschitz(d, c, gamma_d,  gamma_c):
     step_c = max(0.0001, gamma_c * np.linalg.norm(d.T.dot(d)))
     step_d = max(0.0001, gamma_d * np.linalg.norm(c.dot(c.T)))
-    return (1/step_c), (1/step_d)
+    return (1/step_d), (1/step_c)
 
 
 def _check_penalty(penalty):
