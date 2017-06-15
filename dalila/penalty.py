@@ -3,6 +3,8 @@ from __future__ import print_function, division
 import numpy as np
 import sys
 from itertools import product
+import bintrees
+
 
 #TODO: fare il controllo dei parametri appena viene chiamato qualcosa, decidi dove
 
@@ -276,3 +278,90 @@ class GroupLassoPenalty(Penalty):
             for g in self._groups:
                 res += np.linalg.norm(x[r, g])
         return self._lambda * res
+
+
+class LInfPenalty(Penalty):
+
+    def __init__(self, _lambda):
+        self._lambda = _lambda
+
+    def _is_leaf(self, v):
+        return v.left is None and v.right is None
+
+    def _pivotsearch(self, rb_tree, v, rho, s, v_star=np.inf, rho_star=0., s_star=0.):
+        z = 1.  # ray of the ball, 1
+        rho_hat = v.value[0]
+        s_hat = v.value[1]
+
+        if s_hat < v.key * rho_hat + z:
+            if v_star > v.key:
+                v_star = v.key
+                rho_star = rho_hat
+                s_star = s_hat
+            if self._is_leaf(v):
+                return (s_star - z)/rho_star
+            if v.left is not None:
+                del rb_tree[v.key:]
+                return self._pivotsearch(rb_tree, rb_tree._root, rho_hat, s_hat, v_star, rho_star, s_star)  # node v.left
+            else:
+                return (s_star - z)/rho_star  # "no left child"
+
+        else:
+            if self._is_leaf(v):
+                return (s_star - z)/rho_star
+            if v.right is not None:
+                del rb_tree[:v.key]
+                del rb_tree[v.key]
+                return self._pivotsearch(rb_tree, rb_tree._root, rho, s, v_star, rho_star, s_star)  # node v.right
+            else:
+                return (s_star - z)/rho_star  # "no right child"
+
+    def _projection_L1ball(self, v):
+
+        """Find the projection of a vector onto the L1 ball. See for reference
+        'Efficient projections onto L1-ball for learning in high dimensions'
+        Duchi , Schwartz, Singer. SECTION 4, Figure 2.
+        Parameters
+        -------------------
+        v : vector to be projected
+        Returns
+        -------------------
+        w : projection on v onto the L1 ball of radius z
+        """
+
+        vector_copy = np.abs(v)
+        keys_ar = np.unique(vector_copy)
+        r = map(lambda k: (np.where(k == vector_copy)[0]).sum(), keys_ar)
+        r = list(r)
+        # r = np.where(j == vector_copy)[0].sum()
+        # print("where ", r)
+        # r = map(lambda k: len(np.where(k == vector_copy)[0]), keys_ar)
+        # print("where2 ", r)
+        n_elements = np.cumsum(r[::-1])[::-1]  # r di cui abbiamo bisogno
+        s_sum = keys_ar * r
+        cum_sum = np.cumsum(s_sum[::-1])[::-1]
+
+        dictionary = {}
+        for i in range(len(keys_ar)):
+            dictionary[keys_ar[i]] = [n_elements[i], cum_sum[i]]
+
+        rb_tree = bintrees.RBTree(dictionary)
+        theta = self._pivotsearch(rb_tree, rb_tree._root, 0., 0.)
+
+        return np.clip(vector_copy - theta, a_min=0, a_max=np.inf) * np.sign(v)
+
+    def apply_prox_operator(self, x, gamma):
+        return self.apply_by_row(x, gamma)
+
+    def prox_operator(self, x, gamma):
+        # norm = np.linalg.norm(x) + 1e-10  # added constant for stability
+        # x *= max(1 - (gamma*self._lambda) / norm, 0)
+        x -= gamma*self._lambda * self._projection_L1ball(x/(gamma*self._lambda))
+        return x
+
+    def make_grid(self, low=-3, high=1, number=10):
+        values = np.logspace(low, high, number)
+        l = []
+        for (i, v) in enumerate(values):
+            l.append(LInfPenalty(v))
+        return l
