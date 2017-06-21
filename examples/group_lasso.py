@@ -51,14 +51,20 @@ plt.plot(signals[2])
 plt.show()
 
 decompositions = []
-for i in np.linspace(0.00001, 0.001, 15):
+for i in np.linspace(0.1, 10, 15):
     estimator = DictionaryLearning(k=6,
                                    dict_penalty=None,
-                                   coeff_penalty=GroupLassoPenalty(groups, i))
+                                   coeff_penalty=GroupLassoPenalty(groups, i),
+                                   non_negativity="coeff")
 
     estimator.fit(signals, n_iter=20000)
     decompositions.append(estimator.decomposition())
+    print("finito", i)
+    print("reconstruction error", estimator.reconstruction_error())
+    print("\n\n")
 
-for d in decompositions:
+
+for (i, d) in enumerate(decompositions):
+   # np.save("decomposition"+str(i)+".npy", d)
     plt.pcolor(d[0], cmap=plt.cm.Reds)
     plt.show()

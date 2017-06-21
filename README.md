@@ -3,8 +3,12 @@ DALILA (DictionAry LearnIng LibrAry)
 
 **DALILA** is a Dictionary Learning Library whose purpose is to find a decomposition of an input matrix **X** into two other matrices **D** and **C** which are respectively the *dictionary* which contains the basic atoms and the *coefficients* that are weights for the atoms. The linear combination of atoms weighted with the coefficients give an approximation of the original signal.
 
-We propose a generic optimization algorithm that can optimize the functional with different penalties both on the dictionary and on the coefficients. The algorithm works for unsupervised and supervised dictionary learning.
+We propose a generic optimization algorithm that can optimize the functional
+with different penalties both on the dictionary and on the coefficients.
+The algorithm works for unsupervised dictionary learning and sparse coding.
 
+The library allows to run some of its computationally expensive parts in parallel
+on the same machine or distributing the tasks with dask (http://dask.pydata.org/en/latest/index.html).
 
 Unsupervised dictionary learning
 ---------------------------------
@@ -18,29 +22,93 @@ the penalties on **C** and **D** can be of different types an precisely we offer
 - L1-norm    
 - L2-norm
 - elastic-net
-//- Total Variation
-//- Group Lasso
-//- Non-negativity constraint
+- Group lasso
+- L0 norm
+- LInf norm
+- Total Variation
 
-//or a combination of the previous on both the dictionary and the coefficients. 
+besides we offere the possibility to impose non-negativy contraints on the decomposition
+on both the matrices, on only the coefficients or for none of them.
 
+Sparse coding
+--------------
+Optimization of a problem in the following form
 
-//Supervised dictionary learning
-//------------------------------
-//Optimization of a discriminative dictionary learning problem in the following form
+            ||X - DC|| + c(C)
 
+where the dictionary is known and fixed. The penalties that can be used on the coefficients
+are the same listed above.
 
-  //      ||X - DC|| + ||y - wC||+ c(C) + d(D) + g(w)
-
-
-//where **y** is a vector of classes or regression values,  **w** are the regression coefficients based on the new representation of the samples given by **C** and g(**w**) is the penalty function on //the coefficients and it can be a combination of:
-
-//- L1-norm
-//- L2-norm
-//- elastic-net
-
+Stability dictionary learning
+-----------------------------
+We offer a class, called StabilityDictionaryLearning that executes the dictionary
+learning algorithm and iteratively clusters the atoms to find a stable solution
+w.r.t. the noise in the data.
 
 Cross-validation
 ----------------
-The library contains a procedure to analyse which is the best number of atoms to decompose the signal matrix and which are the best regularization parameters.
-In an unsupervised case cross-validation is performed on BIC (Bayesian Information Criterion) value computed on the reconstruction error.
+The library contains a procedure to analyse which is the best number of atoms
+to decompose the signal matrix and which are the best regularization parameters.
+The score for cross-validation is the BIC (Bayesian Information Criterion) value
+computed on the objective function value.
+
+
+## Installation
+
+**dalila** supports Python 2.7 and Python3.6
+
+#### Pip installation
+`$ pip install dalila`
+
+#### Conda installation
+`$ conda install dalila`
+
+#### Installing from sources
+```bash
+$ git clone https://github.com/slipguru/dalila
+$ cd dalila
+$ python setup.py install
+```
+
+
+## Quick start
+
+### 1. Dictionary learning
+```python
+from dalila.dictionary_learning import DictionaryLearning
+from dalila.penalties import L1Penalty, L2Penalty
+from dalila.utils import synthetic_data_non_negative
+
+X, _, _= synthetic_data_non_negative()
+n_atom = 7
+coeff_penalty = L1Penalty(1.) # 1. is the regularization parameter
+dict_penalty = L2Penalty(0.1) # 0.1 is the regularization parameter
+estimator = DictionaryLearning(k=n_atoms, coeff_penalty=coeff_penalty,
+                               dict_penalty=dict_penalty,
+                               non_negativity="none")
+estimator.fit(X)
+C, D = estimator.decomposition()
+```
+
+### 2. Sparse coding
+```python
+from dalila.dictionary_learning import SparseCoding
+from dalila.penalties import L1Penalty
+from dalila.utils import synthetic_data_non_negative
+
+X, _, D = synthetic_data_non_negative()
+n_atom = 7
+penalty = L1Penalty(1.) # 1. is the regularization parameter
+estimator = SparseCoding(penalty=penalty,
+                         non_negativity=True)
+estimator.fit(X, D)
+C = estimator.coefficients()
+```
+
+### 3. Parameters research and cross-validation
+```python
+
+```
+
+## Need more info?
+Check out the project [homepage](http://slipguru.github.io/adenine/index.html)

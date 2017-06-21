@@ -279,7 +279,7 @@ class DictionaryLearning(BaseEstimator):
             d_old = d
             c_old = c
 
-            step_c, step_d = _step_lipschitz(d, c,
+            step_d, step_c = _step_lipschitz(d, c,
                                              gamma_c=gamma_c, gamma_d=gamma_d)
 
             # objective_funcion.append(objective)

@@ -258,9 +258,9 @@ class GroupLassoPenalty(Penalty):
         return new_x
 
     def prox_operator(self, x, gamma):
-        if np.linalg.norm(x) < self._lambda:
+        if np.linalg.norm(x) < self._lambda*gamma:
             return np.zeros_like(x)
-        x *= (1 - self._lambda/np.linalg.norm(x))
+        x *= (1 - (self._lambda*gamma)/np.linalg.norm(x))
         return x
 
     def make_grid(self, low=0, high=1, number=5):
