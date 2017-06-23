@@ -3,7 +3,7 @@ from __future__ import print_function, division
 import sys
 
 import numpy as np
-from itertools import product, combinations
+from itertools import product, combinations, chain
 import bintrees
 import logging
 
@@ -64,8 +64,8 @@ class L1Penalty(Penalty):
 
     def apply_prox_operator(self, x, gamma):
         if self._lambda < 0:
-            logging.ERROR("A negative regularization parameter was used")
-            sys.exit(0)
+            logging.error("A negative regularization parameter was used")
+            raise ValueError("A negative regularization parameter was used")
 
         return self.apply_by_row(x, gamma)
 
@@ -108,8 +108,8 @@ class L2Penalty(Penalty):
 
     def apply_prox_operator(self, x, gamma):
         if self._lambda < 0:
-            logging.ERROR("A negative regularisation parameter was used")
-            sys.exit(0)
+            logging.error("A negative regularisation parameter was used")
+            raise ValueError("A negative regularization parameter was used")
 
         return self.apply_by_row(x, gamma)
 
@@ -160,13 +160,14 @@ class ElasticNetPenalty(Penalty):
         self.alpha = alpha
 
     def apply_prox_operator(self, x, gamma):
-        if self._lambda < 0 or self._lambda2 < 0:
-            logging.ERROR("A negative regularisation parameter was used")
-            sys.exit(0)
+        if self._lambda1 < 0 or self._lambda2 < 0:
+            logging.error("A negative regularisation parameter was used")
+            raise ValueError("A negative regularization parameter was used")
         if self.alpha < 0 or self.alpha>1:
-            logging.ERROR("The alpha value of elastic net penalty has to be "
+            logging.error("The alpha value of elastic net penalty has to be "
                           "in the interval [0,1]")
-            sys.exit(0)
+            raise ValueError("The alpha value of elastic net penalty has to be "
+                          "in the interval [0,1]")
 
         return self.apply_by_row(x, gamma)
 
@@ -218,11 +219,16 @@ class L0Penalty(Penalty):
         self.s = s
 
     def apply_prox_operator(self, x, gamma):
-        if self.s > X.shape[1]:
-            logging.ERROR("The number of non-zero elements to impose with L0 "
+        if self.s < 0:
+            logging.error("A negative regularisation parameter was used")
+            raise ValueError("A negative regularization parameter was used")
+        if self.s > x.shape[1]:
+            logging.error("The number of non-zero elements to impose with L0 "
                           "penalty cannot be higher than the number of "
                           "features")
-            sys.exit(0)
+            raise ValueError("The number of non-zero elements to impose with "
+                             "L0 penalty cannot be higher than the number of "
+                             "features")
         return self.apply_by_row(x, gamma)
 
     def prox_operator(self, x, gamma):
@@ -267,16 +273,21 @@ class GroupLassoPenalty(Penalty):
         self._lambda = _lambda
 
     def apply_prox_operator(self, x, gamma):
-        lengths = [len(g) for g in self._groups]
-        if np.sum(lengths) < x.shape[1]:
-            logging.ERROR("The groups in group lasso must cover all the "
-                          "features")
-            sys.exit(0)
+        if self._lambda < 0:
+            logging.error("A negative regularisation parameter was used")
+            raise ValueError("A negative regularization parameter was used")
 
-        for pair in combinations(groups, r=2):
+        l = list(set().union(*self._groups))
+        if not (l == list(np.arange(x.shape[1]))):
+            logging.error("The groups in group lasso must cover all the "
+                          "features")
+            raise ValueError("The groups in group lasso must cover all the "
+                          "features")
+
+        for pair in combinations(self._groups, r=2):
             if len(set(pair[0]) & set(pair[1])) > 0:
-                logging.ERROR("There are overlapping groups")
-                sys.exit(0)
+                logging.error("There are overlapping groups")
+                raise ValueError("There are overlapping groups")
 
         new_x = np.zeros_like(x)
         for r in range(0, x.shape[0]):
@@ -314,8 +325,8 @@ class LInfPenalty(Penalty):
 
     def apply_prox_operator(self, x, gamma):
         if self._lambda < 0:
-            logging.ERROR("A negative regularisation parameter was used")
-            sys.exit(0)
+            logging.error("A negative regularisation parameter was used")
+            raise ValueError("A negative regularization parameter was used")
         return self.apply_by_row(x, gamma)
 
     def prox_operator(self, x, gamma):

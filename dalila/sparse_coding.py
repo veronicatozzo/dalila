@@ -10,6 +10,7 @@ from sklearn.utils import check_random_state
 
 from dalila.penalty import Penalty
 from dalila.utils import non_negative_projection
+from dalila.dictionary_learning import _check_penalty
 
 
 class SparseCoding(BaseEstimator):
@@ -98,8 +99,8 @@ class SparseCoding(BaseEstimator):
 
         # ________________optimization procedure____________________________#
         self.C = self._proximal_gradient_minimization(random_state,
-                                                      backtracking=backtracking,
-                                                      n_iter=n_iter)
+                                                backtracking=backtracking,
+                                                n_iter=n_iter)
 
         # __________________________final controls__________________________#
         logging.debug("Finished optimization")
@@ -235,12 +236,9 @@ class SparseCoding(BaseEstimator):
                           "%f"%(difference_c))
             logging.debug("\n")
 
-            if (np.isnan(difference_objective) or np.isinf(difference_objective) or
-                    abs(difference_objective) > 1e+20):
-                logging.info('Something in the optimization went wrong '
-                             'found nan or big values number.'
-                             ' Try another setting')
-                sys.exit(0)
+            assert ((not np.isnan(difference_objective)) and
+                    (not np.isinf(difference_objective)) and
+                    abs(difference_objective) < 1e+20)
 
             if (abs(difference_objective) <= epsilon and
                     difference_c <= epsilon):
@@ -282,18 +280,6 @@ class SparseCoding(BaseEstimator):
 def _step_lipschitz(d, gamma_c):
     step_c = max(0.0001, gamma_c * np.linalg.norm(d.T.dot(d)))
     return 1/step_c
-
-
-def _check_penalty(penalty, projection=None):
-    if penalty is None:
-        return Penalty()
-
-    if not isinstance(penalty, Penalty):
-        logging.warning('The penalty is not a subclass of the '
-                        'right type')
-        sys.exit(0)
-
-    return penalty
 
 
 

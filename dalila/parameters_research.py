@@ -135,7 +135,7 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
                                 distributed, scheduler_host,
                                 random_state)
     else:
-        logging.ERROR("Unknown type of research, please try with another "
+        logging.error("Unknown type of research, please try with another "
                       "setting")
 
 
@@ -149,7 +149,7 @@ def _find_everything_sequentially(x, estimator, max_k,
 
     # ---------------------first part
     params= _get_params_dict(estimator,
-                                   dict_penalty_range=dict_penalty_range)
+                             dict_penalty_range=dict_penalty_range)
     params['k'] = list(range(2, max_k))
 
     jobs = 1 if distributed == 1 else cpu_count()
@@ -266,6 +266,7 @@ def _get_params_dict(estimator, dict_penalty_range):
                                            dict_penalty_range[1],
                                            dict_penalty_range[2]))}
 
+
 def _get_params_coeff(estimator, coeff_penalty_range):
     if estimator.coeff_penalty is None:
         return {}
@@ -274,6 +275,7 @@ def _get_params_coeff(estimator, coeff_penalty_range):
                              make_grid(coeff_penalty_range[0],
                                        coeff_penalty_range[1],
                                        coeff_penalty_range[2]))}
+
 
 def _get_params(estimator, dict_penalty_range, coeff_penalty_range):
     if estimator.dict_penalty is None and estimator.coeff_penalty is None:
@@ -309,7 +311,8 @@ def _check_estimator(estimator):
     if not (isinstance(estimator, DictionaryLearning)):
         logging.error('Unknown estimator for the '
                       'dictionary learning optimization.')
-        sys.exit(0)
+        raise TypeError('Unknown estimator for the '
+                      'dictionary learning optimization.')
 
 
 def _check_range(r):
@@ -317,11 +320,11 @@ def _check_range(r):
         return
     if not len(r) == 3:
         logging.error('Too few elements in range specification.')
-        sys.exit(0)
+        raise ValueError('Too few elements in range specification.')
 
     if r[0] < 0:
         logging.error('The minimum number for the range is 0.')
-        sys.exit(0)
+        raise ValueError('The minimum number for the range is 0.')
 
     if r[2] > 10:
         logging.warning('Using more than ten values for each penalty may '
@@ -344,6 +347,7 @@ def _check_scheduler(s):
         if i < 0 or i > 255:
             accepted = False
     if not accepted:
-        logging.ERROR("The given IP does not respect the requirements")
-        return 1
+        logging.warning("The given IP does not respect the requirements."
+                        "Parallel version will be executed")
+        return 0
     return 2

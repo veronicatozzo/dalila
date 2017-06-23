@@ -21,11 +21,14 @@ def _check_non_negativity(nn, x):
             logging.error('The matrix of signals to decompose has '
                           'negative numbers, impossible to use non-negative'
                           ' matrix factorization.')
-            sys.exit(0)
+            raise ValueError('The matrix of signals to decompose has '
+                          'negative numbers, impossible to use non-negative'
+                          ' matrix factorization.')
     if not (nn == 'both' or nn == 'none' or nn == 'coeff'):
         logging.error("Unknown option for non_negativy, please use"
                       "one of {'none', 'both', 'coeff'}.")
-        sys.exit(0)
+        raise ValueError("Unknown option for non_negativy, please use"
+                      "one of {'none', 'both', 'coeff'}.")
 
 
 def _compute_clusters_and_silhouettes(Ds, Cs):

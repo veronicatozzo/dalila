@@ -128,8 +128,8 @@ class DictionaryLearning(BaseEstimator):
 
         # ________________optimization procedure____________________________#
         self.D, self.C = \
-            self._alternating_proximal_gradient_minimization(random_state, n_iter=n_iter,
-                                                             backtracking=backtracking)
+            self._alternating_proximal_gradient_minimization(random_state,
+                n_iter=n_iter, backtracking=backtracking)
 
         if self.dict_normalization:
             for k in range(self.k):
@@ -289,12 +289,9 @@ class DictionaryLearning(BaseEstimator):
             logging.debug("Difference between previous and new coefficients:" +
                           str(difference_c)+"`\n\n")
 
-            if (np.isnan(difference_objective) or
-                    np.isinf(difference_objective) or
-                    abs(difference_objective) > 1e+20):
-                logging.warning('Found nan or big values number.'
-                                ' Try another setting')
-                sys.exit(0)
+            assert ((not np.isnan(difference_objective)) and
+                    (not np.isinf(difference_objective)) and
+                    (abs(difference_objective) < 1e+20))
 
             if (abs(difference_objective) <= epsilon and
                     difference_d <= epsilon and
@@ -488,7 +485,7 @@ class StabilityDictionaryLearning(DictionaryLearning):
                 mean_D[i, :] = mean_D[i, :] / np.sum(mean_D[i, :])
 
             difference = np.sum((old_mean_D - mean_D) ** 2)
-            print("Difference", difference)
+            logging.debug("Difference " + str(difference))
 
         self.meanD = mean_D
         self.meanC = mean_C
@@ -539,7 +536,8 @@ def _check_penalty(penalty):
     if not isinstance(penalty, Penalty):
         logging.warning('The penalty is not a subclass of the '
                         'right type.')
-        sys.exit(0)
+        raise TypeError('The penalty is not a subclass of the '
+                        'right type.')
 
     return penalty
 
@@ -548,11 +546,13 @@ def _check_number_of_atoms(k, p, n):
     if k is None:
         logging.warning('No number of atoms was given. '
                         'Impossible to do optimization.')
-        sys.exit(0)
+        raise ValueError('No number of atoms was given. '
+                        'Impossible to do optimization.')
     if k <= 0 or k > min(n, p):
         logging.warning('The number of atoms must be greater than zero '
                         'and less than the min of the dimensions of X.')
-        sys.exit(0)
+        raise ValueError('The number of atoms must be greater than zero '
+                        'and less than the min of the dimensions of X.')
 
 
 def _sampling(X, random_state):  # sampling with replacement
