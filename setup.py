@@ -24,21 +24,54 @@ except ImportError:
     print('sklearn is required during installation')
     sys.exit(1)
 
+try:
+    import matplotlib
+except ImportError:
+    print('matplotlib is required during installation')
+    sys.exit(1)
 
-#add other required packages if needed
+
+try:
+    import bintrees
+except ImportError:
+    print('bintrees is required during installation')
+    sys.exit(1)
+
+try:
+    import itertools
+except ImportError:
+    print('itertools is required during installation')
+    sys.exit(1)
+
+try:
+    import logging
+except ImportError:
+    print('logging is required during installation')
+    sys.exit(1)
+
+try:
+    import multiprocessing
+except ImportError:
+    print('multiprocessing is required during installation')
+    sys.exit(1)
+
+try:
+    import distributed
+except ImportError:
+    print('distributed is required during installation')
+    sys.exit(1)
 
 
 setup(name='dalila',
       version='1.0.0',
       description='A library for dictionary learning decomposition',
-      long_description='A library for the decomposition of a matrix of signals '
-                       'in an unsupervised and supervised scenario. '
-                       'It includes a pipeline for the analysis of the best number'
-                       'of atoms to use.',
-      url='https://github.com/veronicatozzo/DaLiLa',
+      long_description='A library for the decomposition of a matrix of signals.'
+                       'It includes sparse coding algorithm and parameter '
+                       'research procedures.',
+      url='https://github.com/slipguru/dalila',
       author='Veronica Tozzo',
       author_email='veronica.tozzo@dibris.unige.it',
-      #license='boh',
+      license='FreeBSD',
       classifiers={
           'Development Status :: 0',
           'Environment :: Console',
@@ -52,5 +85,4 @@ setup(name='dalila',
           'Operating System :: Unix'},
       packages=find_packages(),
       install_requires=INSTALL_REQUIRES,
-      #scripts=''
       )

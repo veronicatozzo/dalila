@@ -3,3 +3,9 @@ scikit-learn>=0.17
 numpy
 scipy
 matplotlib
+bintrees
+itertools
+logging
+multiprocessing
+distributed
+dask

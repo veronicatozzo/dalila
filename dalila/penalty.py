@@ -1,17 +1,16 @@
 from __future__ import print_function, division
 
-import numpy as np
 import sys
-from itertools import product
+
+import numpy as np
+from itertools import product, combinations
 import bintrees
-
-
-#TODO: fare il controllo dei parametri appena viene chiamato qualcosa, decidi dove
+import logging
 
 
 class Penalty:
     """
-    Class to represent a general penalty.
+    Super class that represents a general empty penalty.
     """
 
     def apply_by_row(self, x, gamma):
@@ -64,6 +63,10 @@ class L1Penalty(Penalty):
        self._lambda = _lambda
 
     def apply_prox_operator(self, x, gamma):
+        if self._lambda < 0:
+            logging.ERROR("A negative regularization parameter was used")
+            sys.exit(0)
+
         return self.apply_by_row(x, gamma)
 
     def prox_operator(self, x, gamma):
@@ -101,13 +104,13 @@ class L2Penalty(Penalty):
         """
 
     def __init__(self, _lambda):
-        if _lambda < 0:
-            print('\033[1;31m Wrong value for the l2 penalty.\033[1;m') #TODO: metti log
-            sys.exit(0)
-
-        self._lambda = _lambda
+         self._lambda = _lambda
 
     def apply_prox_operator(self, x, gamma):
+        if self._lambda < 0:
+            logging.ERROR("A negative regularisation parameter was used")
+            sys.exit(0)
+
         return self.apply_by_row(x, gamma)
 
     def prox_operator(self, x, gamma):
@@ -157,6 +160,14 @@ class ElasticNetPenalty(Penalty):
         self.alpha = alpha
 
     def apply_prox_operator(self, x, gamma):
+        if self._lambda < 0 or self._lambda2 < 0:
+            logging.ERROR("A negative regularisation parameter was used")
+            sys.exit(0)
+        if self.alpha < 0 or self.alpha>1:
+            logging.ERROR("The alpha value of elastic net penalty has to be "
+                          "in the interval [0,1]")
+            sys.exit(0)
+
         return self.apply_by_row(x, gamma)
 
     def prox_operator(self, x, gamma):
@@ -207,6 +218,11 @@ class L0Penalty(Penalty):
         self.s = s
 
     def apply_prox_operator(self, x, gamma):
+        if self.s > X.shape[1]:
+            logging.ERROR("The number of non-zero elements to impose with L0 "
+                          "penalty cannot be higher than the number of "
+                          "features")
+            sys.exit(0)
         return self.apply_by_row(x, gamma)
 
     def prox_operator(self, x, gamma):
@@ -230,7 +246,7 @@ class L0Penalty(Penalty):
 
 class GroupLassoPenalty(Penalty):
     """
-        Class representing Group Lasso penalty.
+        Class representing non-overlapping Group Lasso penalty.
 
         The prox operator in case of 2D matrix will be applied rowwise.
 
@@ -251,6 +267,17 @@ class GroupLassoPenalty(Penalty):
         self._lambda = _lambda
 
     def apply_prox_operator(self, x, gamma):
+        lengths = [len(g) for g in self._groups]
+        if np.sum(lengths) < x.shape[1]:
+            logging.ERROR("The groups in group lasso must cover all the "
+                          "features")
+            sys.exit(0)
+
+        for pair in combinations(groups, r=2):
+            if len(set(pair[0]) & set(pair[1])) > 0:
+                logging.ERROR("There are overlapping groups")
+                sys.exit(0)
+
         new_x = np.zeros_like(x)
         for r in range(0, x.shape[0]):
             for g in self._groups:
@@ -285,38 +312,27 @@ class LInfPenalty(Penalty):
     def __init__(self, _lambda):
         self._lambda = _lambda
 
-    def _is_leaf(self, v):
-        return v.left is None and v.right is None
+    def apply_prox_operator(self, x, gamma):
+        if self._lambda < 0:
+            logging.ERROR("A negative regularisation parameter was used")
+            sys.exit(0)
+        return self.apply_by_row(x, gamma)
 
-    def _pivotsearch(self, rb_tree, v, rho, s, v_star=np.inf, rho_star=0., s_star=0.):
-        z = 1.  # ray of the ball, 1
-        rho_hat = v.value[0]
-        s_hat = v.value[1]
+    def prox_operator(self, x, gamma):
+        # norm = np.linalg.norm(x) + 1e-10  # added constant for stability
+        # x *= max(1 - (gamma*self._lambda) / norm, 0)
+        x -= gamma*self._lambda * \
+             self._projection_L1ball(x/(gamma*self._lambda))
+        return x
 
-        if s_hat < v.key * rho_hat + z:
-            if v_star > v.key:
-                v_star = v.key
-                rho_star = rho_hat
-                s_star = s_hat
-            if self._is_leaf(v):
-                return (s_star - z)/rho_star
-            if v.left is not None:
-                del rb_tree[v.key:]
-                return self._pivotsearch(rb_tree, rb_tree._root, rho_hat, s_hat, v_star, rho_star, s_star)  # node v.left
-            else:
-                return (s_star - z)/rho_star  # "no left child"
+    def make_grid(self, low=-3, high=1, number=10):
+        values = np.logspace(low, high, number)
+        l = []
+        for (i, v) in enumerate(values):
+            l.append(LInfPenalty(v))
+        return l
 
-        else:
-            if self._is_leaf(v):
-                return (s_star - z)/rho_star
-            if v.right is not None:
-                del rb_tree[:v.key]
-                del rb_tree[v.key]
-                return self._pivotsearch(rb_tree, rb_tree._root, rho, s, v_star, rho_star, s_star)  # node v.right
-            else:
-                return (s_star - z)/rho_star  # "no right child"
-
-    def _projection_L1ball(self, v):
+    def projection_L1ball(self, v):
 
         """Find the projection of a vector onto the L1 ball. See for reference
         'Efficient projections onto L1-ball for learning in high dimensions'
@@ -350,18 +366,40 @@ class LInfPenalty(Penalty):
 
         return np.clip(vector_copy - theta, a_min=0, a_max=np.inf) * np.sign(v)
 
-    def apply_prox_operator(self, x, gamma):
-        return self.apply_by_row(x, gamma)
+    def _pivotsearch(self, rb_tree, v, rho, s, v_star=np.inf, rho_star=0.,
+                     s_star=0.):
+        z = 1.  # ray of the ball, 1
+        rho_hat = v.value[0]
+        s_hat = v.value[1]
 
-    def prox_operator(self, x, gamma):
-        # norm = np.linalg.norm(x) + 1e-10  # added constant for stability
-        # x *= max(1 - (gamma*self._lambda) / norm, 0)
-        x -= gamma*self._lambda * self._projection_L1ball(x/(gamma*self._lambda))
-        return x
+        if s_hat < v.key * rho_hat + z:
+            if v_star > v.key:
+                v_star = v.key
+                rho_star = rho_hat
+                s_star = s_hat
+            if self._is_leaf(v):
+                return (s_star - z) / rho_star
+            if v.left is not None:
+                del rb_tree[v.key:]
+                return self._pivotsearch(rb_tree, rb_tree._root, rho_hat,
+                                         s_hat, v_star, rho_star,
+                                         s_star)  # node v.left
+            else:
+                return (s_star - z) / rho_star  # "no left child"
 
-    def make_grid(self, low=-3, high=1, number=10):
-        values = np.logspace(low, high, number)
-        l = []
-        for (i, v) in enumerate(values):
-            l.append(LInfPenalty(v))
-        return l
+        else:
+            if self._is_leaf(v):
+                return (s_star - z) / rho_star
+            if v.right is not None:
+                del rb_tree[:v.key]
+                del rb_tree[v.key]
+                return self._pivotsearch(rb_tree, rb_tree._root, rho, s,
+                                         v_star, rho_star,
+                                         s_star)  # node v.right
+            else:
+                return (s_star - z) / rho_star  # "no right child"
+
+    def _is_leaf(self, v):
+        return v.left is None and v.right is None
+
+

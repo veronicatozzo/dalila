@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
-from dalila.penalty import Penalty, ElasticNetPenalty, L2Penalty
+from dalila.penalty import Penalty
 from dalila.utils import non_negative_projection
 
 
@@ -53,7 +53,7 @@ class SparseCoding(BaseEstimator):
         self.D = None
         self.C = None
 
-    def fit(self, x, d, backtracking=0):
+    def fit(self, x, d, backtracking=0, n_iter=20000):
 
         """Function that fits the estimator on the matrices X and D.
 
@@ -69,11 +69,16 @@ class SparseCoding(BaseEstimator):
         x : array-like or sparse matrix shape =  (n_samples, n_features)
             The matrix to decompose.
 
-        d: array_like or sparse matrix, shape= (n_atoms, n_features
+        d: array_like or sparse matrix, shape= (n_atoms, n_features)
+            The dictionary.
 
         backtracking: bool, optional
             If True a procedure of backtracking is done on the step in order
             to avoid an increasing in the objective function.
+
+        n_iter: int, optional
+            Maximum number of iteration the minimization algorithm can
+            perform.
 
         Returns
         -------
@@ -92,8 +97,9 @@ class SparseCoding(BaseEstimator):
         logging.debug("Initializing coefficients..")
 
         # ________________optimization procedure____________________________#
-        self.C = self._minimization(random_state,
-                                    backtracking=backtracking)
+        self.C = self._proximal_gradient_minimization(random_state,
+                                                      backtracking=backtracking,
+                                                      n_iter=n_iter)
 
         # __________________________final controls__________________________#
         logging.debug("Finished optimization")
@@ -188,7 +194,8 @@ class SparseCoding(BaseEstimator):
         n = self.X.shape[1]
         return - (self.k * n + 2 * self.reconstruction_error())
 
-    def _minimization(self, random_state, backtracking=0):
+    def _proximal_gradient_minimization(self, random_state, backtracking=0,
+                                        n_iter=20000):
         x = self.X
         d = self.D
         n, p = x.shape
@@ -231,8 +238,8 @@ class SparseCoding(BaseEstimator):
             if (np.isnan(difference_objective) or np.isinf(difference_objective) or
                     abs(difference_objective) > 1e+20):
                 logging.info('Something in the optimization went wrong '
-                      'found nan or big values number.'
-                      ' Try another setting')
+                             'found nan or big values number.'
+                             ' Try another setting')
                 sys.exit(0)
 
             if (abs(difference_objective) <= epsilon and
@@ -286,12 +293,6 @@ def _check_penalty(penalty, projection=None):
                         'right type')
         sys.exit(0)
 
-    if projection:
-        if (isinstance(penalty, L2Penalty) or
-                isinstance(penalty, ElasticNetPenalty)):
-            logging.warning('The l2 projection cannot be combined with '
-                            'lagrangian l2-norm penalties')
-            sys.exit(0)
     return penalty
 
 

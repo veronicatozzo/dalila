@@ -1,12 +1,11 @@
-import numpy as np
-import sys
 import logging
-from scipy import signal
+import sys
+
+from sklearn.model_selection._split import BaseShuffleSplit
+from sklearn.model_selection._split import _validate_shuffle_split
+from sklearn.utils import check_random_state
 import numpy as np
 
-from scipy import signal
-from sklearn.utils import check_random_state
-import matplotlib.pyplot as plt
 
 def non_negative_projection(x, nn, matrix_type=None):
     if matrix_type is None and nn:
@@ -16,7 +15,7 @@ def non_negative_projection(x, nn, matrix_type=None):
     return x
 
 
-def check_non_negativity(nn, x):
+def _check_non_negativity(nn, x):
     if nn == 'both':
         if np.min(x) < 0:
             logging.error('The matrix of signals to decompose has '
@@ -29,16 +28,16 @@ def check_non_negativity(nn, x):
         sys.exit(0)
 
 
-def compute_clusters_and_silhouettes(Ds, Cs):
+def _compute_clusters_and_silhouettes(Ds, Cs):
     all_dictionaries, all_coefficients, centroids, clusters = \
         _clustering(Ds, Cs)
     silhouettes = _silhouette(clusters)
 
-    sums = np.zeros_like(all_coefficients[0])
+    _sums = np.zeros_like(all_coefficients[0])
 
     for i in range(0, len(all_coefficients)):
-        sums = sums + all_coefficients[i]
-    mean_coeffs = sums / len(all_coefficients)
+        _sums = _sums + all_coefficients[i]
+    mean_coeffs = _sums / len(all_coefficients)
 
     return all_dictionaries, all_coefficients, centroids, \
            mean_coeffs, np.mean(silhouettes)
@@ -78,7 +77,7 @@ def _clustering(Ds, Cs):
         index = np.argmax(distances)
         new_order_for_atoms[c] = index
         centroids[c, :] = (sums[c, :] + D[index, :]) / iterations
-        clusters[c].append(D[index, ])
+        clusters[c].append(D[index,])
         used_atoms.append(index)
 
     # order D_last and H_last w.r.t. ordered_D
@@ -99,11 +98,11 @@ def _silhouette(clusters):
     for c in range(len(clusters)):
         C = clusters[c]
         others = [x for i, x in enumerate(clusters) if i != c]
-        silhouettes[c] = single_cluster_silhouette(C, others)
+        silhouettes[c] = _single_cluster_silhouette(C, others)
     return silhouettes
 
 
-def single_cluster_silhouette(A, others):
+def _single_cluster_silhouette(A, others):
     single_point_silhouette = np.zeros(len(A))
     for i in range(len(A)):
         a_i = _average_distance(A[i], A)
@@ -166,201 +165,57 @@ def compute_correlation(x, set_to_compare, not_to_consider):
     return correlations
 
 
-def sparse_signal_generator(n, length, frequencies, support_atoms, shift=True):
-
-    """ The following function generates signals using sawtooth and sin
-    Parameters
-    -------------------
-    number : number of signals to be generated
-    length : length of the time series (number of points)
-    frequencies : number of frequencies (to be used for the def of atoms)
-    shift = if true shifted atoms, else fixed
-
-    Returns
-    -------------------
-    multichannel_matrix : matrix of signals np.array(length, n)
-    atoms_matrix : dictionary np.array(length, number_of_atoms)
+class MonteCarloBootstrap(BaseShuffleSplit):
     """
+    Montecarlo sampling
 
-    f_array = np.linspace(4./length, 40./length, frequencies)
-    atom_shape = 2
-
-    if shift:
-        n_shifts = length - support_atoms
-    else:
-        n_shifts = 1
-
-    number_of_atoms = frequencies * atom_shape * n_shifts
-    _low = int(0.4 * number_of_atoms)
-    _high = int(0.7 * number_of_atoms)
-    selected_atoms = np.random.randint(low=_low, high=_high, size=(10,))
-    atoms = np.zeros((length, number_of_atoms))
-    time_vector = np.arange(support_atoms)
-    diff_supp = length - support_atoms
-
-    for i in range(frequencies):
-        temp1 = np.sin(f_array[i] * time_vector)
-        temp2 = signal.sawtooth(f_array[i] * time_vector)
-        norm1 = np.linalg.norm(np.pad(temp1, (0, diff_supp), mode='constant'))
-        norm2 = np.linalg.norm(np.pad(temp2, (0, diff_supp), mode='constant'))
-        for j in range(n_shifts):
-            atoms[:, i*n_shifts+j] = np.pad(temp1, (j, diff_supp-j), mode='constant')/norm1
-            atoms[:, i*n_shifts+j+frequencies*n_shifts] = np.pad(temp2, (j, diff_supp-j), mode='constant')/norm2
-
-    multichannel_signal = np.zeros((length, n))
-    for i in range(n):
-        random_atoms = np.random.choice(selected_atoms, size=5)
-        weight = 10 * np.random.randn(5,)
-        multichannel_signal[:, i] = np.dot(atoms[:, random_atoms], weight)
-
-    np.save('signal_gen', multichannel_signal)
-    np.save('atom_gen', atoms)
-
-    return multichannel_signal, atoms
-
-    def synthetic_data_non_negative(gaussian_noise=1,
-                                    random_state=None):
-
-
-"""
-Generates synthetic non-negative data for dictionary learning tests.
-
-This function generates a matrix generated from 7 basic atoms linearly
-combined with random weights sparse over the atoms. A certain level of
-gaussian noise is added to the signal.
-
-Parameters
-----------
-gaussian_noise: float, optional
-    The level of noise to add to the synthetic data.
-
-random_state: RandomState or int, optional
-    RandomState or seed used to generate RandomState for the
-    reproducibility of data. If None each time RandomState is randomly
-    initialised.
-
-Returns
--------
-array_like, shape=(80, 96)
-    Generated matrix of data
-"""
-
-number_of_features = 96
-number_of_samples = 80
-number_of_atoms = 7
-rnd = check_random_state(random_state)
-
-atoms = np.empty([number_of_features, number_of_atoms])
-atoms[:, 0] = np.transpose(
-    np.concatenate((np.ones([30, 1]), np.zeros([66, 1]))))
-atoms[:, 1] = np.transpose(
-    np.concatenate((np.zeros([60, 1]), np.ones([36, 1]))))
-atoms[:, 2] = np.transpose(np.concatenate(
-    (np.zeros([24, 1]), np.ones([30, 1]), np.zeros([42, 1]))))
-atoms[:, 3] = signal.gaussian(96, 5)
-atoms[:, 4] = np.transpose(np.concatenate((np.zeros([17, 1]),
-                                           np.ones([15, 1]),
-                                           np.zeros([30, 1]),
-                                           np.ones([24, 1]),
-                                           np.zeros([10, 1]))))
-atoms[:, 5] = np.roll(signal.gaussian(96, 5), 30)
-atoms[:, 6] = signal.gaussian(96, 8)
-atoms[0:50, 6] = 0
-
-sums = np.sum(atoms, axis=0)
-atoms = atoms / sums
-
-# create sparse coefficients
-coefficients = np.zeros([number_of_atoms, number_of_samples])
-for i in range(0, number_of_samples):
-    number_of_nonzero_elements = rnd.randint(2, 4)
-    indices = rnd.choice(range(0, 7), number_of_nonzero_elements,
-                         replace=False)
-    coeffs = rnd.random_sample(number_of_nonzero_elements) * 100
-    coefficients[indices, i] = coeffs
-
-# create matrix
-v = np.dot(atoms, coefficients)
-
-# add noise
-v_tilde = v + np.random.normal(0, gaussian_noise,
-                               (number_of_features, number_of_samples))
-v_tilde[np.where(v_tilde < 0)] = 0
-
-return v_tilde.T
-
-
-def synthetic_data_negative(gaussian_noise=1, n_features=60,
-                            n_samples=100, random_state=None):
-    # type: (object, object, object, object) -> object
-    """
-    Generates synthetic data for dictionary learning tests.
-
-    This function generates a matrix generated from 10 basic atoms linearly
-    combined with random weights sparse over the atoms. A certain level of
-    gaussian noise is added to the signal.
+    It does random sampling with replacement where if the dataset has
+    dimensions (n, p) it samples n random elements from the dataset where some
+    of them can be repeated multiple times.
 
     Parameters
     ----------
-    gaussian_noise: float, optional
-        The level of noise to add to the synthetic data.
+    n_splits : int (default 10)
+        Number of re-shuffling & splitting iterations.
 
-    n_features: int, optional
-        Number of features the output matrix must have.
+    test_size : float, int, or None, default 0.1
+        If float, should be between 0.0 and 1.0 and represent the
+        proportion of the dataset to include in the test split. If
+        int, represents the absolute number of test samples. If None,
+        the value is automatically set to the complement of the train size.
 
-    n_samples: int, optional
-        Number of samples for the output matrix.
+    train_size : float, int, or None (default is None)
+        If float, should be between 0.0 and 1.0 and represent the
+        proportion of the dataset to include in the train split. If
+        int, represents the absolute number of train samples. If None,
+        the value is automatically set to the complement of the test size.
 
-    random_state: RandomState or int, optional
-        RandomState or seed used to generate RandomState for the
-        reproducibility of data. If None each time RandomState is randomly
-        initialised.
+    random_state : int, RandomState instance or None, optional (default=None)
+        If int, random_state is the seed used by the random number generator;
+        If RandomState instance, random_state is the random number generator;
+        If None, the random number generator is the RandomState instance used
+        by `np.random`.
 
-    Returns
-    -------
-    array_like, shape=(n_samples, number_of_features)
-        Generated matrix of data
+    Examples
+    --------
+    from dalila.utils import MonteCarloBootstrap
+    X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+    rs = MonteCarloBoostrap(n_splits=3, test_size=.25, random_state=0)
+    rs.get_n_splits(X)
+
+    for train_index, test_index in rs.split(X):
+        print("TRAIN:", train_index, "TEST:", test_index)
     """
-    plt.close("all")
-    number_of_atoms = 5
-    rnd = check_random_state(random_state)
 
-    atoms = np.empty([n_features, number_of_atoms])
-
-    t = np.linspace(0, 1, n_features)
-    # atoms[:, 0] = signal.sawtooth(2*np.pi*5*t)
-    atoms[:, 0] = np.sin(2 * np.pi * t)
-    atoms[:, 1] = np.sin(2 * np.pi * t - 15)
-    # atoms[:, 2] = signal.gaussian(n_features, 5)
-    # atoms[:, 2] = signal.square(2 * np.pi * 5 * t)
-    atoms[:, 2] = np.abs(np.sin(2 * np.pi * t))
-
-    z = signal.gausspulse(t - 0.5, fc=5, retquad=True, retenv=True)
-    # atoms[:, 3] = z[0]
-    # atoms[:, 4] = z[1]
-    atoms[:, 3] = z[2]
-    # atoms[:, 6] = signal.ricker(n_features, 5)
-    atoms[:, 4] = np.roll(np.sign(z[2] - 0.5), 10)
-
-    # for i in range(0, number_of_atoms):
-    #     plt.figure()
-    #     plt.plot(atoms[:, i])
-    # plt.show()
-
-    # create sparse coefficients
-    coefficients = np.zeros([number_of_atoms, n_samples])
-    for i in range(0, n_samples):
-        number_of_nonzero_elements = rnd.randint(2, 4)
-        indices = rnd.choice(range(0, number_of_atoms),
-                             number_of_nonzero_elements,
-                             replace=False)
-        coeffs = rnd.random_sample(number_of_nonzero_elements) * 10
-        coefficients[indices, i] = coeffs
-
-    # create matrix
-    v = np.dot(atoms, coefficients)
-
-    # add noise
-    v_tilde = v + np.random.normal(0, gaussian_noise,
-                                   (n_features, n_samples))
-    return v_tilde.T, coefficients.T, atoms.T
+    def _iter_indices(self, X, y=None, groups=None):
+        n_samples = X.shape[0]
+        n_train, n_test = _validate_shuffle_split(n_samples, self.test_size,
+                                                  self.train_size)
+        rng = check_random_state(self.random_state)
+        for i in range(self.n_splits):
+            # random partition
+            ind_train = rng.randint(0, high=X.shape[0],
+                                    size=n_train)
+            ind_test = list(set(np.arange(0, X.shape[0])) -
+                            set(np.unique(ind_train)))
+            yield ind_train, ind_test

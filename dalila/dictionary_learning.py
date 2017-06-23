@@ -9,8 +9,8 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
-from dalila.utils import non_negative_projection, check_non_negativity,\
-                         compute_clusters_and_silhouettes
+from dalila.utils import non_negative_projection, _check_non_negativity,\
+                         _compute_clusters_and_silhouettes
 from dalila.penalty import Penalty, L1Penalty, L0Penalty
 from dalila.sparse_coding import SparseCoding
 
@@ -78,7 +78,7 @@ class DictionaryLearning(BaseEstimator):
         self.D = None
         self.C = None
 
-    def fit(self, x, y=None, n_iter=200000, backtracking=0):
+    def fit(self, x, y=None, n_iter=20000, backtracking=0):
 
         """Function that fits the estimator on the matrix X.
 
@@ -120,7 +120,7 @@ class DictionaryLearning(BaseEstimator):
         self.dict_penalty = _check_penalty(self.dict_penalty)
         self.coeff_penalty = _check_penalty(self.coeff_penalty)
         _check_number_of_atoms(self.k, p, n)
-        check_non_negativity(self.non_negativity, x)
+        _check_non_negativity(self.non_negativity, x)
 
         logging.debug("Starting procedure with " +
                       str(self.k)+" number of atoms")
@@ -128,8 +128,8 @@ class DictionaryLearning(BaseEstimator):
 
         # ________________optimization procedure____________________________#
         self.D, self.C = \
-            self._alternating_minimization(random_state, n_iter=n_iter,
-                                           backtracking=backtracking)
+            self._alternating_proximal_gradient_minimization(random_state, n_iter=n_iter,
+                                                             backtracking=backtracking)
 
         if self.dict_normalization:
             for k in range(self.k):
@@ -177,7 +177,7 @@ class DictionaryLearning(BaseEstimator):
             The matrix of coefficients
 
         If one of the three is None the internal decomposition is taken, if no
-        decomposition is available NaN is returnes.
+        decomposition is available NaN is returned.
 
         Returns
         -------
@@ -229,7 +229,7 @@ class DictionaryLearning(BaseEstimator):
         -------
         float
             The score of the current decomposition. BIC value computed as
-                 k(log(n_samples)-log(2\pi)) - 2*(||X - CD||)
+            -log(k)*log(n_samples) - 2.3*(self.objective_function_value())
             the highest is the score and better the decomposition is.
         """
         if self.X is None:
@@ -237,8 +237,9 @@ class DictionaryLearning(BaseEstimator):
         return - (np.log(self.X.shape[0])*np.log(self.k) \
                     + 2.3*np.log(self.objective_function_value()))
 
-    def _alternating_minimization(self, random_state,  n_iter=20000,
-                                  backtracking=0):
+    def _alternating_proximal_gradient_minimization(self, random_state,
+                                                    n_iter=20000,
+                                                    backtracking=0):
         x = self.X
         n, p = x.shape
         d = non_negative_projection(random_state.rand(self.k, p)*10-5,
@@ -255,9 +256,6 @@ class DictionaryLearning(BaseEstimator):
 
         d_old = d
         c_old = c
-        # objective_funcion = []
-        # delta_coeff = []
-        # delta_dict = []
         logging.debug("Starting optimization")
         for i in range(n_iter):
             gradient_d = c.T.dot(c.dot(d) - x)
@@ -282,20 +280,6 @@ class DictionaryLearning(BaseEstimator):
             step_d, step_c = _step_lipschitz(d, c,
                                              gamma_c=gamma_c, gamma_d=gamma_d)
 
-            # objective_funcion.append(objective)
-            # delta_coeff.append(difference_c)
-            # delta_dict.append(difference_d)
-
-            # if i % 1000 == 0:
-            #     print("Iteration: "+str(i))
-            #     print("Objective function: " + str(objective))
-            #     print("Difference between new objective and "
-            #           "previous one: " + str(difference_objective))
-            #     print("Difference between previous and new dictionary: " +
-            #           str(difference_d))
-            #     print("Difference between previous and new coefficients:" +
-            #           str(difference_c) + "`\n\n")
-
             logging.debug("Iteration: "+str(i))
             logging.debug("Objective function: "+str(objective))
             logging.debug("Difference between new objective and "
@@ -317,19 +301,6 @@ class DictionaryLearning(BaseEstimator):
                     difference_c <= epsilon):
                 break
 
-        # np.save("objective.npy", objective_funcion)
-        # np.save("dictionary.npy", delta_dict)
-        # np.save("coefficients.npy", delta_coeff)
-        #
-        # plt.plot(objective_funcion[4:])
-        # plt.title("Objective function")
-        # plt.show()
-        # plt.plot(delta_dict[4:])
-        # plt.title("Differences in dictionary")
-        # plt.show()
-        # plt.plot(delta_coeff[4:])
-        # plt.title("Difference in coefficients")
-        # plt.show()
         return d, c
 
     def _simple_update(self, d, c, gradient_d, gradient_c,
@@ -380,6 +351,58 @@ class DictionaryLearning(BaseEstimator):
 
 ###############################################################################
 class StabilityDictionaryLearning(DictionaryLearning):
+    """ Estimator for dictionary learning (DL) based on prox methods and clusters.
+
+        This estimator optimises a functional of the following form:
+
+        (1/2)||X - CD||_F^2 + phi(D) + psi(C)
+
+        where the norm of the reconstruction error is a Frobenious matrix norm
+        and the functions phi and psi are a combination of penalties that act
+        row-wise on both the matrices.
+        It is possible to specify which kind of penalties you want to use on
+        the matrices, if there must be a non-negativity constraint and if the
+        atoms in the dictionary must have norm equal to one.
+
+        The algorithm performs many decomposition using DL and after each
+        iteration it clusters the atoms obtained in every iteration in order to
+        have final atoms that are stable w.r.t to data noise.
+
+        For more details see Alexandrov et al, Cell 2013.
+
+        Parameters
+        ----------
+
+        k: int
+            Number of atoms in which decompose the input matrix.
+
+        dict_penalty : a sub-class of Penalty in penalty.py file,
+            optional
+            It is applied on the dictionary and it can be L0Penalty,
+            L1Penalty, L2Penalty, ElasticNetPenalty
+
+        coeff_penalty: sa sub-class of Penalty class in penalty.py file,
+            optional
+            It is applied on the coefficients and it can be L0Penalty,
+            L1Penalty, L2Penalty, ElasticNetPenalty
+
+        dict_normalization: int, optional
+            If different than zero the atoms are normalized to have l2-norm
+            equal to 1.
+
+        non_negativity: string, optional
+            If 'none' (default) the atoms and the coefficients can be both
+            non negative.
+            If 'both' non-negativity is applied on both matrices.
+            if 'coeff' non-negativity is applied only on the matrix of the
+            coefficients.
+
+
+        random_state: RandomState or int
+            Seed to be use to initialise np.random.RandomState. If None each
+            time RandomState is randomly initialised.
+
+       """
 
     def __init__(self, k, dict_penalty=None, coeff_penalty=None,
                  dict_normalization=1, non_negativity='none',
@@ -393,7 +416,43 @@ class StabilityDictionaryLearning(DictionaryLearning):
         self.Ds_sequence = None
         self.Cs_sequence = None
 
-    def fit(self, x, y=None, backtracking=0, n_iter=200000, epsilon=1e-4):
+    def fit(self, x, y=None, backtracking=0, n_iter=20000, epsilon=1e-4):
+        """Function that fits the estimator on the matrix X.
+
+           This function finds the decomposition in dictionary and coefficients
+           with an alternating proximal gradient algorithm. It iteratively
+           computes the gradient on one of the two matrices by keeping the
+           other fixed and then apply the prox operator of the specified
+           penalty. If the flat non-negative is set it project the rows of the
+           matrices to the positive space, while if the dict_normalization flag
+           is set the rows of the dictionaries are normalised to have l2-norm
+           equal to 1.
+
+           Parameters
+           ----------
+
+           x : array-like or sparse matrix shape =  (n_samples, n_features)
+               The matrix to decompose.
+
+           y:
+               Inserted for compatibility with sklearn library.
+
+           n_iter: int, optional
+               Maximum number of iterations the algorithm does before stopping.
+
+           backtracking: bool, optional
+               If True a procedure of backtracking is done on the step in order
+               to avoid an increasing in the objective function.
+
+           epsilon: float, optional
+                The difference between the each iteration of DL at which the
+                algorithm stops to return the solution.
+
+           Returns
+           -------
+           self : object
+
+           """
         x = check_array(x)
         self.X = x
         n, p = x.shape
@@ -401,7 +460,7 @@ class StabilityDictionaryLearning(DictionaryLearning):
         self.dict_penalty = _check_penalty(self.dict_penalty)
         self.coeff_penalty = _check_penalty(self.coeff_penalty)
         _check_number_of_atoms(self.k, p, n)
-        check_non_negativity(self.non_negativity, x)
+        _check_non_negativity(self.non_negativity, x)
 
         difference = 10
         n, d = x.shape
@@ -422,7 +481,7 @@ class StabilityDictionaryLearning(DictionaryLearning):
             Cs.append(self.C)
 
             Ds, Cs, mean_D, mean_C, stability = \
-                compute_clusters_and_silhouettes(Ds, Cs)
+                _compute_clusters_and_silhouettes(Ds, Cs)
 
             # normalization
             for i in range(mean_D.shape[0]):
@@ -432,203 +491,37 @@ class StabilityDictionaryLearning(DictionaryLearning):
             print("Difference", difference)
 
         self.meanD = mean_D
+        self.meanC = mean_C
         self.stability = stability
         self.Ds_sequence = Ds
         self.Cs_sequence = Cs
-
-        # find final coefficients with sparse coding
-        # nn = 1 if (self.non_negativity == "both" or
-        #     self.non_negativity == "coeff") else 0
-        # sparse_coding = SparseCoding(penalty=self.coeff_penalty,
-        #                              non_negativity=nn,
-        #                              random_state=self.random_state)
-        # sparse_coding.fit(self.X, self.meanD)
-        self.meanC = mean_C
         return self
 
     def decomposition(self):
+        """
+            Returns
+            -------
+
+            C: array-like, shape = (n_samples, k)
+                The learnt mean coefficients.
+
+            D: array_like, shape = (k, n_features)
+                The learnt mean dictionary, the centroids of the clusters of
+                atoms.
+
+            """
         return self.meanC, self.meanD
 
     def stability(self):
+        """
+
+        Returns
+        -------
+        float
+            The mean stability obtained with the clusterization. Where for
+            stability we mean the average silhouette over all the clusters.
+        """
         return self.stability
-
-
-###############################################################################
-class ShiftInvariantDL(BaseEstimator):
-
-    def __init__(self, k, support_dimension, L0):
-        self.k = k
-        self.support_dimension = support_dimension
-        self.basic_atoms = None
-        self.L0 = L0
-
-    def fit(self, X):
-        if self.L0:
-            coeff_pen = L0Penalty(1)
-            estim = DictionaryLearning(self.k,
-                                       coeff_penalty=coeff_pen,
-                                       dict_normalization=1,
-                                       non_negativity="coeff")
-        else:
-            coeff_pen = L1Penalty(0.001)
-            estim = DictionaryLearning(self.k,
-                                       coeff_penalty=coeff_pen,
-                                       dict_normalization=1,
-                                       non_negativity="coeff")
-        estim.fit(X)
-        C, D = estim.decomposition()
-
-        print(estim.reconstruction_error())
-        for i in range(D.shape[0]):
-            plt.plot(D[i, :])
-            plt.show()
-#     def fit(self, x, max_iters=1000):
-#         """
-#
-#         Parameters
-#         ----------
-#         x: array_like, shape = (n_samples, n_features)
-#             The matrix of signals.
-#
-#         max_iters: int, optional
-#             Maximum number of iterations the optimization algorithm does
-#             even if convergence is not reached.
-#
-#         Returns
-#         -------
-#         object:
-#             self.
-#         """
-#
-#         x = check_array(x)
-#         self._check_number_of_atoms(x.shape)
-#         #convergence_function = self._check_convergence()
-#
-#         for i in range(max_iters):
-#             atoms = self.find_atoms(max_iters, x)
-#             coefficients = self.find_coefficients(x, atoms)
-#
-#             #calcolare qualcosa per la convergenza
-#
-#         return self
-#
-#     def find_atoms(self, max_iters, x):
-#         n, p = x.shape
-#         q = self.support_dimension
-#         g = np.zeros((self.k, q)) + 1e-10
-#         for k in range(self.k):
-#             print("Starting with ", k + 1, "atom")
-#             # compute matrix for normalization
-#             if k == 0:
-#                 B_k = np.identity(q)
-#             else:
-#                 B_k = np.zeros((q, q))
-#                 for l in range(k):
-#                     for translate in range(0, p - q + 1):
-#                         t = _translate(g[l, :], translate)
-#                         # B_k += t.dot(t.T)
-#                         B_k += np.outer(t, t)
-#             for i in range(int(max_iters)):
-#                 A = np.zeros((q, q))
-#                 if i == 0:
-#                     for r in range(n):
-#                         A += np.outer(x[r, :q], x[r, :q])
-#                 else:
-#                     x_translated = np.zeros_like(x)
-#                     for r in range(n):
-#                         p_n_i, _ = _find_max_correlation(x[r, :], g[k, :])
-#                         x_translated[r, :] = _translate(x[r, :], p_n_i)
-#                         # A = x_translated.T.dot(x_translated) + 1e-10
-#                         A += np.outer(x_translated[r, p_n_i:p_n_i + q],
-#                                       x_translated[r, p_n_i:p_n_i + q])
-#
-#                 # values, vectors = eig(A, B_k, right=True)
-#                 # M=B_k,
-#                 _, vector = eigs(A=A, k=1, M=B_k, which='LM')
-#                 g_old = np.copy(g[k, :])
-#                 g[k, :] = vector[:, 0] / np.linalg.norm(vector[:, 0])
-#
-#                 # plt.plot(g[k, :])
-#                 # plt.show()
-#                 difference = np.linalg.norm(g_old - g[k, :])
-#                 print(difference)
-#                 if difference < 0.2:  # convergence_function(g_old, g[k, :]):
-#                     print("number of iterations: ", i)
-#                     plt.plot(g[k, :])
-#                     plt.show()
-#                     break
-#             return g
-#
-#     def find_coefficients(self, x, matx_iters):
-#         # per ogni  sample
-#            coefficients = np.array((n, (p-q)))
-#
-#             #fino a convergenza (quando l'errore di ricostruzione e' buono)
-#                 #per ogni atomo
-#                     #calcolo indice e valore di massima correlazione
-#                 #confronto adeguatamente i risultati
-#
-#                 #salvo i coefficienti
-#                 #alfa <- norma(segnale)/norma(atomo) nella finestra q
-#                 # calcolo il residuo che elimina l'atomo per il coefficiente dal segnale
-#
-#
-#
-#
-#
-#     def get_basic_atoms(self):
-#         return self.basic_atoms
-#
-#     def _check_number_of_atoms(self, shape):
-#         if self.k <= 0 and self.k > shape[0] * shape[1]:
-#             print('\033[1;31m Cannot find specified number of atoms'
-#                   ' \n\033[1;m')
-#             sys.exit(0)
-#
-#     def _check_convergence(self):
-#         # check other cases
-#         if self.convergence == "qualcosa":  # should never be reached now
-#             return lambda x: True
-#         return lambda x1, x2: np.linalg.norm(x1-x2) < 1e-10
-#
-#
-# # def _translate(x, t):
-# #     if t < 0:
-# #         trans = np.pad(x, (-t, 0), mode='constant')[:t]
-# #     elif t == 0:
-# #         trans = x
-# #     else:
-# #         trans = np.pad(x, (0, t), mode='constant')[t:]
-# #     return trans
-#
-# def _translate(x, t):
-#     if t < 0:
-#         trans = np.pad(x, (0, -t), mode='constant')[-t:]
-#     elif t == 0:
-#         trans = x
-#     else:
-#         trans = np.pad(x, (t, 0), mode='constant')[:-t]
-#         # questo trasla a sinistra il segnale
-#     return trans
-#
-#
-# def _find_max_correlation(signal, to_translate):
-#     max_correlation = -float("inf")
-#     final_translation = 0
-#     q = len(to_translate)
-#     if len(signal) != len(to_translate):
-#         to_translate = np.pad(to_translate, (0, -len(to_translate)+len(signal)), mode='constant')
-#     for t in range(0, len(signal)-q):
-#         trans = _translate(to_translate, t)
-#         correlation = np.abs(signal.dot(trans.T))
-#         if correlation > max_correlation:
-#             final_translation = t
-#             max_correlation = correlation
-#     plt.figure()
-#     plt.plot(signal)
-#     plt.plot(_translate(to_translate, final_translation))
-#     plt.show()
-#     return final_translation, max_correlation
 
 
 # ____________________________UTILITY FUNCTIONS_______________________________

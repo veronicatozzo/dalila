@@ -77,7 +77,7 @@ $ python setup.py install
 ```python
 from dalila.dictionary_learning import DictionaryLearning
 from dalila.penalties import L1Penalty, L2Penalty
-from dalila.utils import synthetic_data_non_negative
+from dalila.dataset_generator import synthetic_data_non_negative
 
 X, _, _= synthetic_data_non_negative()
 n_atom = 7
@@ -94,7 +94,7 @@ C, D = estimator.decomposition()
 ```python
 from dalila.dictionary_learning import SparseCoding
 from dalila.penalties import L1Penalty
-from dalila.utils import synthetic_data_non_negative
+from dalila.dataset_generator import synthetic_data_non_negative
 
 X, _, D = synthetic_data_non_negative()
 n_atom = 7
@@ -107,8 +107,17 @@ C = estimator.coefficients()
 
 ### 3. Parameters research and cross-validation
 ```python
+from dalila.dictionary_learning import DictionaryLearning
+from dalila.dictionary_learning import DictionaryLearning
+from dalila.penalty import L1Penalty
+from dalila.parameters_research import tune_parameters_DL
+from dalila.dataset_generator import synthetic_data_negative
+
+X = synthetic_data_negative()
+estimator = DictionaryLearning(k=5, coeff_penalty=L1Penalty(1),
+                               dict_penalty=(L1Penalty(2)),
+                               non_negativity="coeff")
+res = tune_parameters_DL(X, estimator, analysis=1, distributed=0)
 
 ```
 
-## Need more info?
-Check out the project [homepage](http://slipguru.github.io/adenine/index.html)
