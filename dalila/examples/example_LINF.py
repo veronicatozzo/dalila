@@ -2,7 +2,7 @@ from __future__ import print_function, division
 import numpy as np
 import matplotlib.pyplot as plt
 from dalila.utils import sparse_signal_generator as signal_gen
-from dalila.sparse_coding import SparseCoding
+from dalila.representation_learning import RepresentationLearning
 from dalila.penalty import LInfPenalty
 
 plt.close("all")
@@ -17,7 +17,7 @@ for n_atoms in half_n_atoms_list:
     signals, atoms = signal_gen(n_signals, length, n_atoms, length, False)
 
 inf1penalty = LInfPenalty(1.)
-sparse_coding = SparseCoding(penalty=inf1penalty)
+sparse_coding = RepresentationLearning(penalty=inf1penalty)
 fit_result = sparse_coding.fit(signals.T, atoms.T)
 
 print(fit_result.score)

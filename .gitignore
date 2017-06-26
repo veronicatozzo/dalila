@@ -3,6 +3,10 @@ dalila/datasets/breast_cancer_data.mat
 dalila/fatasets/somatic_mutations_UVM.npy
 plots/
 *.npy
+*.pyc
+
+#documentation
+doc/build
 
 #pycharm auto-generated folder
 .idea/*

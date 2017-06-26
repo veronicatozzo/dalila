@@ -1,19 +1,17 @@
 from __future__ import print_function, division
 
 import numpy as np
-import sys
 import logging
 
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
-from dalila.penalty import Penalty
 from dalila.utils import non_negative_projection
 from dalila.dictionary_learning import _check_penalty
 
 
-class SparseCoding(BaseEstimator):
+class RepresentationLearning(BaseEstimator):
     """ An estimator for finding coefficients given the dictionary.
 
         This estimator, given X and D, optimises a functional of the
@@ -32,8 +30,13 @@ class SparseCoding(BaseEstimator):
         ----------
 
         penalty: a sub-class of Penalty class in penalty.py file, optional
-            It is applied on the coefficients and it can be L0Penalty,
-            L1Penalty, L2Penalty, ElasticNetPenalty
+            It is applied on the coefficients and it can be
+            - L0Penalty
+            - L1Penalty
+            - L2Penalty
+            - ElasticNetPenalty
+            - GroupLassoPenalty
+            - LInfPenalty
 
         non_negativity: bool, optional
             If true the coefficients are projected to the non-negative
@@ -193,7 +196,8 @@ class SparseCoding(BaseEstimator):
         if self.X is None:
             return float("-inf")
         n = self.X.shape[1]
-        return - (self.k * n + 2 * self.reconstruction_error())
+        return - (np.log(self.X.shape[0])
+                  + 2.3 * np.log(self.objective_function_value()))
 
     def _proximal_gradient_minimization(self, random_state, backtracking=0,
                                         n_iter=20000):

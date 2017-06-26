@@ -1,0 +1,10 @@
+scikit-learn
+numpy
+scipy
+matplotlib
+bintrees
+itertools
+logging
+multiprocessing
+distributed
+

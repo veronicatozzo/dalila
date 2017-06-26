@@ -1,11 +1,10 @@
 from __future__ import print_function, division
 
-import sys
+import logging
 
 import numpy as np
 from itertools import product, combinations, chain
 import bintrees
-import logging
 
 
 class Penalty:

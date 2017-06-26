@@ -1,7 +1,6 @@
 from __future__ import division
 
 import numpy as np
-import sys
 import logging
 import matplotlib.pyplot as plt
 
@@ -11,8 +10,7 @@ from sklearn.utils import check_random_state
 
 from dalila.utils import non_negative_projection, _check_non_negativity,\
                          _compute_clusters_and_silhouettes
-from dalila.penalty import Penalty, L1Penalty, L0Penalty
-from dalila.sparse_coding import SparseCoding
+from dalila.penalty import Penalty
 
 
 ###############################################################################

@@ -76,11 +76,11 @@ $ python setup.py install
 ### 1. Dictionary learning
 ```python
 from dalila.dictionary_learning import DictionaryLearning
-from dalila.penalties import L1Penalty, L2Penalty
+from dalila.penalty import L1Penalty, L2Penalty
 from dalila.dataset_generator import synthetic_data_non_negative
 
 X, _, _= synthetic_data_non_negative()
-n_atom = 7
+n_atoms = 7
 coeff_penalty = L1Penalty(1.) # 1. is the regularization parameter
 dict_penalty = L2Penalty(0.1) # 0.1 is the regularization parameter
 estimator = DictionaryLearning(k=n_atoms, coeff_penalty=coeff_penalty,
@@ -92,15 +92,14 @@ C, D = estimator.decomposition()
 
 ### 2. Sparse coding
 ```python
-from dalila.dictionary_learning import SparseCoding
-from dalila.penalties import L1Penalty
+from dalila.representation_learning import RepresentationLearning
+from dalila.penalty import L1Penalty
 from dalila.dataset_generator import synthetic_data_non_negative
 
 X, _, D = synthetic_data_non_negative()
-n_atom = 7
 penalty = L1Penalty(1.) # 1. is the regularization parameter
-estimator = SparseCoding(penalty=penalty,
-                         non_negativity=True)
+estimator = RepresentationLearning(penalty=penalty,
+                                   non_negativity=True)
 estimator.fit(X, D)
 C = estimator.coefficients()
 ```
@@ -108,12 +107,11 @@ C = estimator.coefficients()
 ### 3. Parameters research and cross-validation
 ```python
 from dalila.dictionary_learning import DictionaryLearning
-from dalila.dictionary_learning import DictionaryLearning
 from dalila.penalty import L1Penalty
 from dalila.parameters_research import tune_parameters_DL
 from dalila.dataset_generator import synthetic_data_negative
 
-X = synthetic_data_negative()
+X, _, _ = synthetic_data_negative()
 estimator = DictionaryLearning(k=5, coeff_penalty=L1Penalty(1),
                                dict_penalty=(L1Penalty(2)),
                                non_negativity="coeff")

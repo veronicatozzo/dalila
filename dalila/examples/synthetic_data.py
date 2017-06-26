@@ -6,7 +6,7 @@ from dalila.dictionary_learning import DictionaryLearning,\
     StabilityDictionaryLearning
 from dalila.penalty import *
 from dalila.plot import plot_dictionary_atoms
-from dalila.sparse_coding import SparseCoding
+from dalila.representation_learning import RepresentationLearning
 
 
 plt.close("all")

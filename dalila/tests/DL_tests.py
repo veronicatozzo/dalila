@@ -1,6 +1,6 @@
-import numpy as np
 
 from nose.tools import *
+import numpy as np
 
 from dalila.dictionary_learning import DictionaryLearning,\
                                        StabilityDictionaryLearning

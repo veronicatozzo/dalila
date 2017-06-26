@@ -1,6 +1,5 @@
 from __future__ import division
 
-import sys
 import logging
 
 from sklearn.externals.joblib import Parallel, parallel_backend, \
@@ -11,6 +10,7 @@ from sklearn.utils import check_array, check_random_state
 from multiprocessing import cpu_count
 
 from dalila.dictionary_learning import DictionaryLearning
+from dalila.representation_learning import RepresentationLearning
 from dalila.utils import _check_non_negativity, MonteCarloBootstrap
 
 
@@ -29,7 +29,7 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
     X: array-like, shape=(n_samples, n_features)
         The matrix to decompose and analyse.
 
-    estimator: DictionaryLearningEstimator, optional
+    estimator: DictionaryLearning class, optional
         The estimator you want to use to analyse the matrix. If None only the
         research on the best number of atoms will be done.
 
@@ -91,11 +91,12 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
     _check_range(coeff_penalty_range)
     _check_non_negativity(non_negative, X)
 
-    _check_estimator(estimator)
     if estimator is None:
         analysis = 2
-    elif estimator.non_negativity == "none":
-        estimator.non_negativity = non_negative
+    else:
+        _check_estimator(estimator)
+        if estimator.non_negativity == "none":
+            estimator.non_negativity = non_negative
 
     n, p = X.shape
     if max_k is None:
@@ -137,6 +138,99 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
     else:
         logging.error("Unknown type of research, please try with another "
                       "setting")
+        raise ValueError("Unkown type of research, please try with another"
+                         "setting")
+
+
+def tune_parameters_RL(X, D, estimator, non_negative=0,  distributed=0,
+                       scheduler_host="", coeff_penalty_range=(0.0001, 1, 10),
+                       random_state=None):
+    """
+    Parameters tuner.
+
+    It tunes the parameters of a representations learning estimator using
+    3-splits monte carlo sampling cross validation.
+
+    Parameters
+    ----------
+    X: array-like, shape=(n_samples, n_features)
+        The matrix to decompose and analyse.
+
+    D: array-like, shape=(n_atoms, n_features)
+        The dictionary.
+
+    estimator: RepresentationLearning class, optional
+        The estimator you want to use to analyse the matrix.
+
+    non_negative: boolean, optional
+
+    distributed: int, optional
+        If 0 the parameters research will be executed in parallel on the
+        computer the script is launched.
+        If 1 the parameters research will be executed sequentially.
+        If 2 the parameters research will be distributed on multiple machines
+        connected by dask. In this case also scheduler_host must be speficied.
+
+    scheduler_host: string, optional
+        If distributed=2 it is necessary to specify the scheduler of the dask
+        network. The string must be "ip_address:port", for example:
+        "10.251.61.226:8786"
+
+    coeff_penalty_range: float tuple, optional (low, high, number)
+        It gives the interval in which tune the coefficient penalty and the
+        number of values to try.
+
+    random_state : int, RandomState instance or None, optional (default=None)
+        If int, random_state is the seed used by the random number generator;
+        If RandomState instance, random_state is the random number generator;
+        If None, the random number generator is the RandomState instance used
+        by `np.random`.
+
+    Returns
+    -------
+    GridSearchCV
+    The resulting GridSearch.
+
+    """
+
+    # ------------------parameters control ---------------------------------- #
+    X = check_array(X)
+    D = check_array(D)
+    random_state = check_random_state(random_state)
+    _check_range(coeff_penalty_range)
+    if estimator is None:
+        logging.error("passed estimator was None")
+        raise ValueError("passed estimator was None")
+    _check_estimator(estimator)
+
+
+    estimator.non_negativity = non_negative
+
+    if distributed == 2:
+        if scheduler_host is None:
+            logging.ERROR("Distributed execution requires a scheduler "
+                          "specification. Changing the type to parallel.")
+            distributed = 1
+        distributed = _check_scheduler(scheduler_host)
+
+        ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
+                                 random_state=random_state)
+
+    params = _get_params_coeff(estimator, coeff_penalty_range,
+                               representation_learning=1)
+
+    jobs = 1 if distributed == 1 else cpu_count()
+    gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=(cpu_count() - 5),
+                        iid=True, refit=True, verbose=1)
+    if distributed == 2:
+        register_parallel_backend('distributed', DistributedBackend)
+        with parallel_backend('distributed',
+                              scheduler_host=scheduler_host):
+            gscv.fit(x)
+    else:
+        gscv.fit(x)
+
+    return gscv
 
 
 def _find_everything_sequentially(x, estimator, max_k,
@@ -267,9 +361,16 @@ def _get_params_dict(estimator, dict_penalty_range):
                                            dict_penalty_range[2]))}
 
 
-def _get_params_coeff(estimator, coeff_penalty_range):
+def _get_params_coeff(estimator, coeff_penalty_range,
+                      representation_learning=0):
     if estimator.coeff_penalty is None:
         return {}
+
+    if representation_learning:
+        return {'penalty': (estimator.coeff_penalty.
+                             make_grid(coeff_penalty_range[0],
+                                       coeff_penalty_range[1],
+                                       coeff_penalty_range[2]))}
 
     return {'coeff_penalty': (estimator.coeff_penalty.
                              make_grid(coeff_penalty_range[0],
@@ -308,11 +409,10 @@ def _get_params(estimator, dict_penalty_range, coeff_penalty_range):
 
 
 def _check_estimator(estimator):
-    if not (isinstance(estimator, DictionaryLearning)):
-        logging.error('Unknown estimator for the '
-                      'dictionary learning optimization.')
-        raise TypeError('Unknown estimator for the '
-                      'dictionary learning optimization.')
+    if not ((isinstance(estimator, DictionaryLearning)) or
+            isinstance(estimator, RepresentationLearning)):
+        logging.error('Unknown estimator.')
+        raise TypeError('Unknown estimator.')
 
 
 def _check_range(r):

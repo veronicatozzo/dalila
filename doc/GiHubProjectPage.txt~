@@ -1,0 +1,16 @@
+### Welcome to DALILA.
+DALILA is a python library for dictionary and representation learning. 
+
+### Dependencies
+DALILA supports Python 2.7 and 3.5 and inherits its main functionalities from:
+* numpy
+* scikit-learn
+* matplotlib
+
+### Authors and Contributors
+Current developers: Veronica Tozzo (@veronicatozzo) and Vanessa D'Amario (@vanessadamario).
+
+### Support or Contact
+Having trouble with DALILA? Check out our [documentation](http://www.slipguru.unige.it/Software/adenine/) or contact us:
+* veronica [dot] tozzo [at] dibris [dot] unige [dot] it
+* vanessa [dot] damario [at] dibris [dot] unige [dot] it
