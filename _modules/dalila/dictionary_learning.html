@@ -1,0 +1,694 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dalila.dictionary_learning &#8212; DALILA 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/slipGuru.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<meta name="keywords"
+      content="SlipGuru, 'University of Genoa', statistical learning,
+      computational biology, Python, distributed, computing, parallel" />
+<map id="logosmap" name="logosmap">
+    <area shape="rect" alt="SlipGURU" title="SlipGURU" coords="0,0,89,112"
+          href="http://slipguru.disi.unige.it/" />
+    <area shape="rect" alt="Dipartimento di Informatica e Scienze dell'Informazione"
+          title="Dipartimento di Informatica e Scienze dell'Informazione"
+          coords="95,4,200,34" href="http://www.disi.unige.it/" />
+    <area shape="rect" alt="Università Degli Studi di Genova"
+          title="Università Degli Studi di Genova" coords="124,48,171,107"
+          href="http://www.unige.it/" />
+</map>
+
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">DALILA 1.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dalila.dictionary_learning</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">sklearn.base</span> <span class="k">import</span> <span class="n">BaseEstimator</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils</span> <span class="k">import</span> <span class="n">check_array</span>
+<span class="kn">from</span> <span class="nn">sklearn.utils</span> <span class="k">import</span> <span class="n">check_random_state</span>
+
+<span class="kn">from</span> <span class="nn">dalila.utils</span> <span class="k">import</span> <span class="n">non_negative_projection</span><span class="p">,</span> <span class="n">_check_non_negativity</span><span class="p">,</span>\
+                         <span class="n">_compute_clusters_and_silhouettes</span>
+<span class="kn">from</span> <span class="nn">dalila.penalty</span> <span class="k">import</span> <span class="n">Penalty</span>
+
+
+<span class="c1">###############################################################################</span>
+<div class="viewcode-block" id="DictionaryLearning"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.DictionaryLearning">[docs]</a><span class="k">class</span> <span class="nc">DictionaryLearning</span><span class="p">(</span><span class="n">BaseEstimator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; An estimator for dictionary learning based on alternating prox methods.</span>
+
+<span class="sd">        This estimator optimises a functional of the following form:</span>
+
+<span class="sd">        (1/2)||X - CD||_F^2 + phi(D) + psi(C)</span>
+
+<span class="sd">        where the norm of the reconstruction error is a Frobenious matrix norm</span>
+<span class="sd">        and the functions phi and psi are a combination of penalties that act</span>
+<span class="sd">        row-wise on both the matrices.</span>
+<span class="sd">        It is possible to specify which kind of penalties you want to use on</span>
+<span class="sd">        the matrices, if there must be a non-negativity constraint and if the</span>
+<span class="sd">        atoms in the dictionary must have norm equal to one.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        k: int</span>
+<span class="sd">            Number of atoms in which decompose the input matrix.</span>
+
+<span class="sd">        dict_penalty : a sub-class of Penalty in penalty.py file,</span>
+<span class="sd">            optional</span>
+<span class="sd">            It is applied on the dictionary and it can be L0Penalty,</span>
+<span class="sd">            L1Penalty, L2Penalty, ElasticNetPenalty</span>
+
+<span class="sd">        coeff_penalty: sa sub-class of Penalty class in penalty.py file,</span>
+<span class="sd">            optional</span>
+<span class="sd">            It is applied on the coefficients and it can be L0Penalty,</span>
+<span class="sd">            L1Penalty, L2Penalty, ElasticNetPenalty</span>
+
+<span class="sd">        dict_normalization: int, optional</span>
+<span class="sd">            If different than zero the atoms are normalized to have l2-norm</span>
+<span class="sd">            equal to 1.</span>
+
+<span class="sd">        non_negativity: string, optional</span>
+<span class="sd">            If &#39;none&#39; (default) the atoms and the coefficients can be both</span>
+<span class="sd">            non negative.</span>
+<span class="sd">            If &#39;both&#39; non-negativity is applied on both matrices.</span>
+<span class="sd">            if &#39;coeff&#39; non-negativity is applied only on the matrix of the</span>
+<span class="sd">            coefficients.</span>
+
+
+<span class="sd">        random_state: RandomState or int</span>
+<span class="sd">            Seed to be use to initialise np.random.RandomState. If None each</span>
+<span class="sd">            time RandomState is randomly initialised.</span>
+
+<span class="sd">       &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dict_penalty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeff_penalty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dict_normalization</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">non_negativity</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                 <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="n">k</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span> <span class="o">=</span> <span class="n">dict_penalty</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span> <span class="o">=</span> <span class="n">coeff_penalty</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span> <span class="o">=</span> <span class="n">non_negativity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dict_normalization</span> <span class="o">=</span> <span class="n">dict_normalization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">random_state</span> <span class="o">=</span> <span class="n">random_state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">C</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="DictionaryLearning.fit"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.DictionaryLearning.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_iter</span><span class="o">=</span><span class="mi">20000</span><span class="p">,</span> <span class="n">backtracking</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;Function that fits the estimator on the matrix X.</span>
+
+<span class="sd">        This function finds the decomposition in dictionary and coefficients</span>
+<span class="sd">        with an alternating proximal gradient algorithm. It iteratively</span>
+<span class="sd">        computes the gradient on one of the two matrices by keeping the other</span>
+<span class="sd">        fixed and then apply the prox operator of the specified penalty.</span>
+<span class="sd">        If the flat non-negative is set it project the rows of the matrices to</span>
+<span class="sd">        the positive space, while if the dict_normalization flag is set the</span>
+<span class="sd">        rows of the dictionaries are normalised to have l2-norm equal to 1.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        x : array-like or sparse matrix shape =  (n_samples, n_features)</span>
+<span class="sd">            The matrix to decompose.</span>
+
+<span class="sd">        y:</span>
+<span class="sd">            Inserted for compatibility with sklearn library.</span>
+
+<span class="sd">        n_iter: int, optional</span>
+<span class="sd">            Maximum number of iterations the algorithm does before stopping.</span>
+
+<span class="sd">        backtracking: bool, optional</span>
+<span class="sd">            If True a procedure of backtracking is done on the step in order</span>
+<span class="sd">            to avoid an increasing in the objective function.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        self : object</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># ______________ parameters control________________________________#</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">check_array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">random_state</span> <span class="o">=</span> <span class="n">check_random_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">random_state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span> <span class="o">=</span> <span class="n">_check_penalty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span> <span class="o">=</span> <span class="n">_check_penalty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="p">)</span>
+        <span class="n">_check_number_of_atoms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">_check_non_negativity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Starting procedure with &quot;</span> <span class="o">+</span>
+                      <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot; number of atoms&quot;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Initializing dictionary and coefficients..&quot;</span><span class="p">)</span>
+
+        <span class="c1"># ________________optimization procedure____________________________#</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">C</span> <span class="o">=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">_alternating_proximal_gradient_minimization</span><span class="p">(</span><span class="n">random_state</span><span class="p">,</span>
+                <span class="n">n_iter</span><span class="o">=</span><span class="n">n_iter</span><span class="p">,</span> <span class="n">backtracking</span><span class="o">=</span><span class="n">backtracking</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dict_normalization</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">):</span>
+                <span class="n">normalization_factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="p">:])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">[</span><span class="n">k</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/=</span> <span class="n">normalization_factor</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="p">[:,</span> <span class="n">k</span><span class="p">]</span> <span class="o">*=</span> <span class="n">normalization_factor</span>
+
+        <span class="c1"># __________________________final controls__________________________#</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Finished optimization&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span> <span class="o">==</span> <span class="s1">&#39;both&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span> <span class="o">==</span> <span class="s1">&#39;coeff&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="DictionaryLearning.reconstruction_error"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.DictionaryLearning.reconstruction_error">[docs]</a>    <span class="k">def</span> <span class="nf">reconstruction_error</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float:</span>
+<span class="sd">            The reconstruction error for the current decomposition of the</span>
+<span class="sd">            matrix. If no decomposition was run infinity is returned.</span>
+<span class="sd">            A lower reconstruction error corresponds to a better approximation</span>
+<span class="sd">            of the input data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span> <span class="o">/</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="DictionaryLearning.objective_function_value"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.DictionaryLearning.objective_function_value">[docs]</a>    <span class="k">def</span> <span class="nf">objective_function_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        x : array-like, shape=(n_samples, n_features)</span>
+<span class="sd">            The matrix to be decomposed.</span>
+
+<span class="sd">        d: array_like, shape=(n_atoms, n_features)</span>
+<span class="sd">            The dictionary.</span>
+
+<span class="sd">        c: array-like, shape=(n_samples, n_atoms)</span>
+<span class="sd">            The matrix of coefficients</span>
+
+<span class="sd">        If one of the three is None the internal decomposition is taken, if no</span>
+<span class="sd">        decomposition is available NaN is returned.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float:</span>
+<span class="sd">            The value of the objective function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Called objective function value with no&#39;</span>
+                                <span class="s1">&#39;matrices before calling fit. </span><span class="se">\n</span><span class="s1">&#39;</span>
+                                <span class="s1">&#39;Impossible to return an objective function &#39;</span>
+                                <span class="s1">&#39;value&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;NaN&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">d</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">C</span>
+
+        <span class="n">reconstruction</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">c</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">penalty_dictionary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+        <span class="n">penalty_coefficient</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reconstruction</span> <span class="o">+</span> <span class="n">penalty_coefficient</span> <span class="o">+</span> <span class="n">penalty_dictionary</span></div>
+
+<div class="viewcode-block" id="DictionaryLearning.decomposition"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.DictionaryLearning.decomposition">[docs]</a>    <span class="k">def</span> <span class="nf">decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        C: array-like, shape = (n_samples, k)</span>
+<span class="sd">            The learnt coefficients.</span>
+
+<span class="sd">        D: array_like, shape = (k, n_features)</span>
+<span class="sd">            The learnt dictionary.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">D</span></div>
+
+<div class="viewcode-block" id="DictionaryLearning.score"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.DictionaryLearning.score">[docs]</a>    <span class="k">def</span> <span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        *args: optional</span>
+<span class="sd">            Introduced for compatibility with sklearn GridSearchCV</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            The score of the current decomposition. BIC value computed as</span>
+<span class="sd">            -log(k)*log(n_samples) - 2.3*(self.objective_function_value())</span>
+<span class="sd">            the highest is the score and better the decomposition is.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;-inf&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="o">-</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)</span> \
+                    <span class="o">+</span> <span class="mf">2.3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">objective_function_value</span><span class="p">()))</span></div>
+
+    <span class="k">def</span> <span class="nf">_alternating_proximal_gradient_minimization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">random_state</span><span class="p">,</span>
+                                                    <span class="n">n_iter</span><span class="o">=</span><span class="mi">20000</span><span class="p">,</span>
+                                                    <span class="n">backtracking</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">non_negative_projection</span><span class="p">(</span><span class="n">random_state</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span><span class="o">*</span><span class="mi">10</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="s1">&#39;dict&#39;</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">non_negative_projection</span><span class="p">(</span><span class="n">random_state</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)</span><span class="o">*</span><span class="mi">10</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="s1">&#39;coeff&#39;</span><span class="p">)</span>
+
+        <span class="n">gamma_c</span> <span class="o">=</span> <span class="mf">1.1</span>
+        <span class="n">gamma_d</span> <span class="o">=</span> <span class="n">gamma_c</span>
+        <span class="n">step_d</span><span class="p">,</span> <span class="n">step_c</span> <span class="o">=</span> <span class="n">_step_lipschitz</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span>
+                                         <span class="n">gamma_d</span><span class="o">=</span><span class="n">gamma_d</span><span class="p">,</span> <span class="n">gamma_c</span><span class="o">=</span><span class="n">gamma_c</span><span class="p">)</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="mf">1e-4</span>
+        <span class="n">objective</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">objective_function_value</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">)</span>
+
+        <span class="n">d_old</span> <span class="o">=</span> <span class="n">d</span>
+        <span class="n">c_old</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Starting optimization&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_iter</span><span class="p">):</span>
+            <span class="n">gradient_d</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">-</span> <span class="n">x</span><span class="p">)</span>
+            <span class="n">gradient_c</span> <span class="o">=</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">-</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">backtracking</span><span class="p">:</span>
+                <span class="n">d</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_with_backtracking</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">gradient_d</span><span class="p">,</span>
+                                                      <span class="n">gradient_c</span><span class="p">,</span> <span class="n">step_d</span><span class="p">,</span>
+                                                      <span class="n">step_c</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">d</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_simple_update</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">gradient_d</span><span class="p">,</span> <span class="n">gradient_c</span><span class="p">,</span>
+                                           <span class="n">step_d</span><span class="p">,</span> <span class="n">step_c</span><span class="p">)</span>
+
+            <span class="n">new_objective</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">objective_function_value</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">)</span>
+            <span class="n">difference_objective</span> <span class="o">=</span> <span class="n">new_objective</span> <span class="o">-</span> <span class="n">objective</span>
+            <span class="n">objective</span> <span class="o">=</span> <span class="n">new_objective</span>
+            <span class="n">difference_d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="n">d_old</span><span class="p">)</span>
+            <span class="n">difference_c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">c_old</span><span class="p">)</span>
+            <span class="n">d_old</span> <span class="o">=</span> <span class="n">d</span>
+            <span class="n">c_old</span> <span class="o">=</span> <span class="n">c</span>
+
+            <span class="n">step_d</span><span class="p">,</span> <span class="n">step_c</span> <span class="o">=</span> <span class="n">_step_lipschitz</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span>
+                                             <span class="n">gamma_c</span><span class="o">=</span><span class="n">gamma_c</span><span class="p">,</span> <span class="n">gamma_d</span><span class="o">=</span><span class="n">gamma_d</span><span class="p">)</span>
+
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Iteration: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Objective function: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">objective</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Difference between new objective and &quot;</span>
+                          <span class="s2">&quot;previous one: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">difference_objective</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Difference between previous and new dictionary: &quot;</span> <span class="o">+</span>
+                          <span class="nb">str</span><span class="p">(</span><span class="n">difference_d</span><span class="p">))</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Difference between previous and new coefficients:&quot;</span> <span class="o">+</span>
+                          <span class="nb">str</span><span class="p">(</span><span class="n">difference_c</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot;`</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="k">assert</span> <span class="p">((</span><span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">difference_objective</span><span class="p">))</span> <span class="ow">and</span>
+                    <span class="p">(</span><span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">difference_objective</span><span class="p">))</span> <span class="ow">and</span>
+                    <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">difference_objective</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e+20</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">difference_objective</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">epsilon</span> <span class="ow">and</span>
+                    <span class="n">difference_d</span> <span class="o">&lt;=</span> <span class="n">epsilon</span> <span class="ow">and</span>
+                    <span class="n">difference_c</span> <span class="o">&lt;=</span> <span class="n">epsilon</span><span class="p">):</span>
+                <span class="k">break</span>
+
+        <span class="k">return</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span>
+
+    <span class="k">def</span> <span class="nf">_simple_update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">gradient_d</span><span class="p">,</span> <span class="n">gradient_c</span><span class="p">,</span>
+                       <span class="n">step_d</span><span class="p">,</span> <span class="n">step_c</span><span class="p">):</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span><span class="o">.</span> \
+            <span class="n">apply_prox_operator</span><span class="p">(</span><span class="n">d</span> <span class="o">-</span> <span class="n">step_d</span> <span class="o">*</span> <span class="n">gradient_d</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="n">step_d</span><span class="p">)</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">non_negative_projection</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="s1">&#39;dict&#39;</span><span class="p">)</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="o">.</span> \
+            <span class="n">apply_prox_operator</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">step_c</span> <span class="o">*</span> <span class="n">gradient_c</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="n">step_c</span><span class="p">)</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">non_negative_projection</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="s1">&#39;coeff&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span>
+
+    <span class="k">def</span> <span class="nf">_update_with_backtracking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">gradient_d</span><span class="p">,</span> <span class="n">gradient_c</span><span class="p">,</span>
+                                  <span class="n">step_d</span><span class="p">,</span> <span class="n">step_c</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span>
+        <span class="n">d_0</span> <span class="o">=</span> <span class="n">d</span>
+        <span class="n">c_0</span> <span class="o">=</span> <span class="n">c</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">c_0</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d_0</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">sigma</span> <span class="o">=</span> <span class="mf">0.9</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1000</span><span class="p">):</span>
+            <span class="c1"># compute new matrices</span>
+            <span class="n">d_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span><span class="o">.</span> \
+                <span class="n">apply_prox_operator</span><span class="p">(</span><span class="n">d_0</span> <span class="o">-</span> <span class="n">step_d</span> <span class="o">*</span> <span class="n">gradient_d</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="n">step_d</span><span class="p">)</span>
+            <span class="n">d_1</span> <span class="o">=</span> <span class="n">non_negative_projection</span><span class="p">(</span><span class="n">d_1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="s1">&#39;dict&#39;</span><span class="p">)</span>
+            <span class="n">difference_d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">d_1</span> <span class="o">-</span> <span class="n">d_0</span><span class="p">)</span>
+
+            <span class="n">c_1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="o">.</span> \
+                <span class="n">apply_prox_operator</span><span class="p">(</span><span class="n">c_0</span> <span class="o">-</span> <span class="n">step_c</span> <span class="o">*</span> <span class="n">gradient_c</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="n">step_c</span><span class="p">)</span>
+            <span class="n">c_1</span> <span class="o">=</span> <span class="n">non_negative_projection</span><span class="p">(</span><span class="n">c_1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="s1">&#39;coeff&#39;</span><span class="p">)</span>
+            <span class="n">difference_c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">c_1</span> <span class="o">-</span> <span class="n">c_0</span><span class="p">)</span>
+
+            <span class="n">first_part</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">objective_function_value</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="n">d_1</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">c_1</span><span class="p">)</span>
+
+            <span class="n">second_part</span> <span class="o">=</span> <span class="p">(</span><span class="n">error</span> <span class="o">+</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">d_1</span><span class="p">)</span> <span class="o">+</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">c_1</span><span class="p">)</span> <span class="o">+</span>
+                           <span class="p">(</span><span class="n">difference_c</span><span class="o">*</span><span class="n">gradient_c</span><span class="p">)</span><span class="o">.</span><span class="n">trace</span><span class="p">()</span> <span class="o">+</span>
+                           <span class="p">(</span><span class="n">difference_d</span><span class="o">*</span><span class="n">gradient_d</span><span class="p">)</span><span class="o">.</span><span class="n">trace</span><span class="p">()</span> <span class="o">+</span>
+                           <span class="n">step_c</span><span class="o">*</span><span class="n">sigma</span><span class="o">**</span><span class="n">i</span> <span class="o">*</span> <span class="n">difference_c</span> <span class="o">+</span>
+                           <span class="n">step_d</span><span class="o">*</span><span class="n">sigma</span><span class="o">**</span><span class="n">i</span> <span class="o">*</span> <span class="n">difference_d</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">first_part</span> <span class="o">&lt;=</span> <span class="n">second_part</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="k">return</span> <span class="n">d_1</span><span class="p">,</span> <span class="n">c_1</span></div>
+
+
+<span class="c1">###############################################################################</span>
+<div class="viewcode-block" id="StabilityDictionaryLearning"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.StabilityDictionaryLearning">[docs]</a><span class="k">class</span> <span class="nc">StabilityDictionaryLearning</span><span class="p">(</span><span class="n">DictionaryLearning</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Estimator for dictionary learning (DL) based on prox methods and clusters.</span>
+
+<span class="sd">        This estimator optimises a functional of the following form:</span>
+
+<span class="sd">        (1/2)||X - CD||_F^2 + phi(D) + psi(C)</span>
+
+<span class="sd">        where the norm of the reconstruction error is a Frobenious matrix norm</span>
+<span class="sd">        and the functions phi and psi are a combination of penalties that act</span>
+<span class="sd">        row-wise on both the matrices.</span>
+<span class="sd">        It is possible to specify which kind of penalties you want to use on</span>
+<span class="sd">        the matrices, if there must be a non-negativity constraint and if the</span>
+<span class="sd">        atoms in the dictionary must have norm equal to one.</span>
+
+<span class="sd">        The algorithm performs many decomposition using DL and after each</span>
+<span class="sd">        iteration it clusters the atoms obtained in every iteration in order to</span>
+<span class="sd">        have final atoms that are stable w.r.t to data noise.</span>
+
+<span class="sd">        For more details see Alexandrov et al, Cell 2013.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        k: int</span>
+<span class="sd">            Number of atoms in which decompose the input matrix.</span>
+
+<span class="sd">        dict_penalty : a sub-class of Penalty in penalty.py file,</span>
+<span class="sd">            optional</span>
+<span class="sd">            It is applied on the dictionary and it can be L0Penalty,</span>
+<span class="sd">            L1Penalty, L2Penalty, ElasticNetPenalty</span>
+
+<span class="sd">        coeff_penalty: sa sub-class of Penalty class in penalty.py file,</span>
+<span class="sd">            optional</span>
+<span class="sd">            It is applied on the coefficients and it can be L0Penalty,</span>
+<span class="sd">            L1Penalty, L2Penalty, ElasticNetPenalty</span>
+
+<span class="sd">        dict_normalization: int, optional</span>
+<span class="sd">            If different than zero the atoms are normalized to have l2-norm</span>
+<span class="sd">            equal to 1.</span>
+
+<span class="sd">        non_negativity: string, optional</span>
+<span class="sd">            If &#39;none&#39; (default) the atoms and the coefficients can be both</span>
+<span class="sd">            non negative.</span>
+<span class="sd">            If &#39;both&#39; non-negativity is applied on both matrices.</span>
+<span class="sd">            if &#39;coeff&#39; non-negativity is applied only on the matrix of the</span>
+<span class="sd">            coefficients.</span>
+
+
+<span class="sd">        random_state: RandomState or int</span>
+<span class="sd">            Seed to be use to initialise np.random.RandomState. If None each</span>
+<span class="sd">            time RandomState is randomly initialised.</span>
+
+<span class="sd">       &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dict_penalty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coeff_penalty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dict_normalization</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">non_negativity</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                 <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">StabilityDictionaryLearning</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>\
+            <span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">dict_penalty</span><span class="p">,</span> <span class="n">coeff_penalty</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">non_negativity</span><span class="p">,</span>
+                      <span class="n">random_state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meanD</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meanC</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stability</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Ds_sequence</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Cs_sequence</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="StabilityDictionaryLearning.fit"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.StabilityDictionaryLearning.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">backtracking</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">n_iter</span><span class="o">=</span><span class="mi">20000</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Function that fits the estimator on the matrix X.</span>
+
+<span class="sd">           This function finds the decomposition in dictionary and coefficients</span>
+<span class="sd">           with an alternating proximal gradient algorithm. It iteratively</span>
+<span class="sd">           computes the gradient on one of the two matrices by keeping the</span>
+<span class="sd">           other fixed and then apply the prox operator of the specified</span>
+<span class="sd">           penalty. If the flat non-negative is set it project the rows of the</span>
+<span class="sd">           matrices to the positive space, while if the dict_normalization flag</span>
+<span class="sd">           is set the rows of the dictionaries are normalised to have l2-norm</span>
+<span class="sd">           equal to 1.</span>
+
+<span class="sd">           Parameters</span>
+<span class="sd">           ----------</span>
+
+<span class="sd">           x : array-like or sparse matrix shape =  (n_samples, n_features)</span>
+<span class="sd">               The matrix to decompose.</span>
+
+<span class="sd">           y:</span>
+<span class="sd">               Inserted for compatibility with sklearn library.</span>
+
+<span class="sd">           n_iter: int, optional</span>
+<span class="sd">               Maximum number of iterations the algorithm does before stopping.</span>
+
+<span class="sd">           backtracking: bool, optional</span>
+<span class="sd">               If True a procedure of backtracking is done on the step in order</span>
+<span class="sd">               to avoid an increasing in the objective function.</span>
+
+<span class="sd">           epsilon: float, optional</span>
+<span class="sd">                The difference between the each iteration of DL at which the</span>
+<span class="sd">                algorithm stops to return the solution.</span>
+
+<span class="sd">           Returns</span>
+<span class="sd">           -------</span>
+<span class="sd">           self : object</span>
+
+<span class="sd">           &quot;&quot;&quot;</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">check_array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">random_state</span> <span class="o">=</span> <span class="n">check_random_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">random_state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span> <span class="o">=</span> <span class="n">_check_penalty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dict_penalty</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span> <span class="o">=</span> <span class="n">_check_penalty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="p">)</span>
+        <span class="n">_check_number_of_atoms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">_check_non_negativity</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">non_negativity</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+
+        <span class="n">difference</span> <span class="o">=</span> <span class="mi">10</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="n">D</span> <span class="o">=</span> <span class="n">random_state</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="n">Ds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">Cs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">mean_D</span> <span class="o">=</span> <span class="n">D</span>
+        <span class="c1"># until convergence</span>
+        <span class="k">while</span> <span class="n">difference</span> <span class="o">&gt;</span> <span class="n">epsilon</span><span class="p">:</span>
+            <span class="n">old_mean_D</span> <span class="o">=</span> <span class="n">mean_D</span>
+            <span class="c1"># random bootstrap with replacement and fit</span>
+            <span class="n">samples</span> <span class="o">=</span> <span class="n">_sampling</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">random_state</span><span class="p">)</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">StabilityDictionaryLearning</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>\
+                <span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">n_iter</span><span class="o">=</span><span class="n">n_iter</span><span class="p">,</span> <span class="n">backtracking</span><span class="o">=</span><span class="n">backtracking</span><span class="p">)</span>
+            <span class="n">Ds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">)</span>
+            <span class="n">Cs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="p">)</span>
+
+            <span class="n">Ds</span><span class="p">,</span> <span class="n">Cs</span><span class="p">,</span> <span class="n">mean_D</span><span class="p">,</span> <span class="n">mean_C</span><span class="p">,</span> <span class="n">stability</span> <span class="o">=</span> \
+                <span class="n">_compute_clusters_and_silhouettes</span><span class="p">(</span><span class="n">Ds</span><span class="p">,</span> <span class="n">Cs</span><span class="p">)</span>
+
+            <span class="c1"># normalization</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">mean_D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">mean_D</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">mean_D</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">mean_D</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:])</span>
+
+            <span class="n">difference</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">old_mean_D</span> <span class="o">-</span> <span class="n">mean_D</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Difference &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">difference</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">meanD</span> <span class="o">=</span> <span class="n">mean_D</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meanC</span> <span class="o">=</span> <span class="n">mean_C</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stability</span> <span class="o">=</span> <span class="n">stability</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Ds_sequence</span> <span class="o">=</span> <span class="n">Ds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Cs_sequence</span> <span class="o">=</span> <span class="n">Cs</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="StabilityDictionaryLearning.decomposition"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.StabilityDictionaryLearning.decomposition">[docs]</a>    <span class="k">def</span> <span class="nf">decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Returns</span>
+<span class="sd">            -------</span>
+
+<span class="sd">            C: array-like, shape = (n_samples, k)</span>
+<span class="sd">                The learnt mean coefficients.</span>
+
+<span class="sd">            D: array_like, shape = (k, n_features)</span>
+<span class="sd">                The learnt mean dictionary, the centroids of the clusters of</span>
+<span class="sd">                atoms.</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">meanC</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">meanD</span></div>
+
+<div class="viewcode-block" id="StabilityDictionaryLearning.stability"><a class="viewcode-back" href="../../index.html#dalila.dictionary_learning.StabilityDictionaryLearning.stability">[docs]</a>    <span class="k">def</span> <span class="nf">stability</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            The mean stability obtained with the clusterization. Where for</span>
+<span class="sd">            stability we mean the average silhouette over all the clusters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stability</span></div></div>
+
+
+<span class="c1"># ____________________________UTILITY FUNCTIONS_______________________________</span>
+<span class="k">def</span> <span class="nf">_step_lipschitz</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">gamma_d</span><span class="p">,</span>  <span class="n">gamma_c</span><span class="p">):</span>
+    <span class="n">step_c</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">gamma_c</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d</span><span class="p">)))</span>
+    <span class="n">step_d</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">gamma_d</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">T</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">step_d</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">step_c</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_check_penalty</span><span class="p">(</span><span class="n">penalty</span><span class="p">):</span>
+
+    <span class="k">if</span> <span class="n">penalty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Penalty</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">penalty</span><span class="p">,</span> <span class="n">Penalty</span><span class="p">):</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;The penalty is not a subclass of the &#39;</span>
+                        <span class="s1">&#39;right type.&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;The penalty is not a subclass of the &#39;</span>
+                        <span class="s1">&#39;right type.&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">penalty</span>
+
+
+<span class="k">def</span> <span class="nf">_check_number_of_atoms</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;No number of atoms was given. &#39;</span>
+                        <span class="s1">&#39;Impossible to do optimization.&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;No number of atoms was given. &#39;</span>
+                        <span class="s1">&#39;Impossible to do optimization.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">k</span> <span class="o">&gt;</span> <span class="nb">min</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;The number of atoms must be greater than zero &#39;</span>
+                        <span class="s1">&#39;and less than the min of the dimensions of X.&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The number of atoms must be greater than zero &#39;</span>
+                        <span class="s1">&#39;and less than the min of the dimensions of X.&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_sampling</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">random_state</span><span class="p">):</span>  <span class="c1"># sampling with replacement</span>
+    <span class="n">selected</span> <span class="o">=</span> <span class="n">random_state</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                    <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">X</span><span class="p">[</span><span class="n">selected</span><span class="p">,</span> <span class="p">:]</span>
+
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+   
+      <h3>Download</h3>
+      <p>Current version: <b>1.0</b></p>
+      <p>Get DALILA from the
+         <a href="http://pypi.python.org/pypi/DALILA">Python Package Index</a>,
+         or install it with:
+      </p>
+      <pre>pip install --upgrade DALILA</pre>
+      <p> or clone it from our <a href="https://github.com/slipguru/DALILA">GitHub</a> repository: </p>
+      <pre>git clone https://github.com/slipguru/DALILA</pre>
+      <!--or:-->
+      <!--<pre>easy_install -U DALILA</pre>-->
+<!--      <p>Latest
+         <a href="https://bitbucket.org/slipguru/dalila/downloads/DALILA.pdf">
+            documentation in pdf
+         </a>
+         is also available. -->
+      </p>
+   
+
+   
+   
+
+    
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+    <p class="logo">
+       <img class="logo" src="../../_static/logos.png" alt="Logos" usemap="#logosmap" />
+    </p>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">DALILA 1.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017 Veronica Tozzo - Vanessa D&#39;Amario - Annalisa Barla.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.2.
+    </div>
+  </body>
+</html>
