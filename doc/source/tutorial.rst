@@ -28,7 +28,7 @@ From here, you can follow the standard Python installation step::
 
 Examples
 -------
-.. code-block:: python
+::
   # Dictionary learning
   from dalila.dictionary_learning import DictionaryLearning
   from dalila.penalty import L1Penalty, L2Penalty
