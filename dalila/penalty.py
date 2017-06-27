@@ -172,7 +172,7 @@ class ElasticNetPenalty(Penalty):
 
     def prox_operator(self, x, gamma):
         sign = np.sign(x)
-        np.maximum(np.abs(x) - (self._lambda * gamma), 0, out=x)
+        np.maximum(np.abs(x) - (self._lambda1 * gamma), 0, out=x)
         x *= sign
         x /= (1. + self.alpha * self._lambda2 * gamma)
         return x

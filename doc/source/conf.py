@@ -40,7 +40,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'numpydoc',
-    'sphinxcontrib.programoutput',
+    #'sphinxcontrib.programoutput',
 ]
 
 # Extension configurations
