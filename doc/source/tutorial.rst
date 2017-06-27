@@ -27,9 +27,9 @@ From here, you can follow the standard Python installation step::
 
 
 Examples
--------
+--------
 
-.. highlight:: python
+.. code-block:: python
 
     # Dictionary learning
     from dalila.dictionary_learning import DictionaryLearning
