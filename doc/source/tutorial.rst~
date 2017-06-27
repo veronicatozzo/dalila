@@ -28,8 +28,9 @@ From here, you can follow the standard Python installation step::
 
 Examples
 -------
-.. code-block:: Python
-# Dictionary learning
+
+### 1. Dictionary learning
+```python
 from dalila.dictionary_learning import DictionaryLearning
 from dalila.penalty import L1Penalty, L2Penalty
 from dalila.dataset_generator import synthetic_data_non_negative
@@ -43,9 +44,10 @@ estimator = DictionaryLearning(k=n_atoms, coeff_penalty=coeff_penalty,
                                non_negativity="none")
 estimator.fit(X)
 C, D = estimator.decomposition()
+```
 
-
-# Sparse coding
+### 2. Sparse coding
+```python
 from dalila.representation_learning import RepresentationLearning
 from dalila.penalty import L1Penalty
 from dalila.dataset_generator import synthetic_data_non_negative
@@ -56,9 +58,10 @@ estimator = RepresentationLearning(penalty=penalty,
                                    non_negativity=True)
 estimator.fit(X, D)
 C = estimator.coefficients()
+```
 
-
-# Parameters research and cross-validation
+### 3. Parameters research and cross-validation
+```python
 from dalila.dictionary_learning import DictionaryLearning
 from dalila.penalty import L1Penalty
 from dalila.parameters_research import tune_parameters_DL
@@ -70,3 +73,4 @@ estimator = DictionaryLearning(k=5, coeff_penalty=L1Penalty(1),
                                non_negativity="coeff")
 res = tune_parameters_DL(X, estimator, analysis=1, distributed=0)
 
+```
