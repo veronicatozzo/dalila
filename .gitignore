@@ -1,12 +1,10 @@
 #manually set documents
-dalila/datasets/breast_cancer_data.mat
-dalila/fatasets/somatic_mutations_UVM.npy
 plots/
 *.npy
 *.pyc
 
 #documentation
-doc/build
+#doc/build/latex
 
 #pycharm auto-generated folder
 .idea/*
