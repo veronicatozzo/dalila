@@ -27,7 +27,7 @@ doc/datasets/generated/
 
 .Python
 env/
-build/
+/build/
 develop-eggs/
 dist/
 downloads/
