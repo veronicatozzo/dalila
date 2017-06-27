@@ -29,10 +29,10 @@ From here, you can follow the standard Python installation step::
 Examples
 -------
 .. code-block:: python
-# Dictionary learning
-from dalila.dictionary_learning import DictionaryLearning
-from dalila.penalty import L1Penalty, L2Penalty
-from dalila.dataset_generator import synthetic_data_non_negative
+	# Dictionary learning
+	from dalila.dictionary_learning import DictionaryLearning
+	from dalila.penalty import L1Penalty, L2Penalty
+	from dalila.dataset_generator import synthetic_data_non_negative
 
 X, _, _= synthetic_data_non_negative()
 n_atoms = 7
