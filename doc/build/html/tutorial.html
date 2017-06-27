@@ -90,48 +90,6 @@ $ conda install dalila
 </div>
 <div class="section" id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
-<p>### 1. Dictionary learning
-<a href="#id1"><span class="problematic" id="id2">``</span></a><a href="#id3"><span class="problematic" id="id4">`</span></a>python
-from dalila.dictionary_learning import DictionaryLearning
-from dalila.penalty import L1Penalty, L2Penalty
-from dalila.dataset_generator import synthetic_data_non_negative</p>
-<p>X, _, _= synthetic_data_non_negative()
-n_atoms = 7
-coeff_penalty = L1Penalty(1.) # 1. is the regularization parameter
-dict_penalty = L2Penalty(0.1) # 0.1 is the regularization parameter
-estimator = DictionaryLearning(k=n_atoms, coeff_penalty=coeff_penalty,</p>
-<blockquote>
-<div>dict_penalty=dict_penalty,
-non_negativity=”none”)</div></blockquote>
-<p>estimator.fit(X)
-C, D = estimator.decomposition()
-<a href="#id5"><span class="problematic" id="id6">``</span></a><a href="#id7"><span class="problematic" id="id8">`</span></a></p>
-<p>### 2. Sparse coding
-<a href="#id9"><span class="problematic" id="id10">``</span></a><a href="#id11"><span class="problematic" id="id12">`</span></a>python
-from dalila.representation_learning import RepresentationLearning
-from dalila.penalty import L1Penalty
-from dalila.dataset_generator import synthetic_data_non_negative</p>
-<p>X, _, D = synthetic_data_non_negative()
-penalty = L1Penalty(1.) # 1. is the regularization parameter
-estimator = RepresentationLearning(penalty=penalty,</p>
-<blockquote>
-<div>non_negativity=True)</div></blockquote>
-<p>estimator.fit(X, D)
-C = estimator.coefficients()
-<a href="#id13"><span class="problematic" id="id14">``</span></a><a href="#id15"><span class="problematic" id="id16">`</span></a></p>
-<p>### 3. Parameters research and cross-validation
-<a href="#id17"><span class="problematic" id="id18">``</span></a><a href="#id19"><span class="problematic" id="id20">`</span></a>python
-from dalila.dictionary_learning import DictionaryLearning
-from dalila.penalty import L1Penalty
-from dalila.parameters_research import tune_parameters_DL
-from dalila.dataset_generator import synthetic_data_negative</p>
-<p>X, _, _ = synthetic_data_negative()
-estimator = DictionaryLearning(k=5, coeff_penalty=L1Penalty(1),</p>
-<blockquote>
-<div>dict_penalty=(L1Penalty(2)),
-non_negativity=”coeff”)</div></blockquote>
-<p>res = tune_parameters_DL(X, estimator, analysis=1, distributed=0)</p>
-<p><a href="#id21"><span class="problematic" id="id22">``</span></a><a href="#id23"><span class="problematic" id="id24">`</span></a></p>
 </div>
 </div>
 
