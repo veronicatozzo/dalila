@@ -34,12 +34,11 @@ class DictionaryLearning(BaseEstimator):
         k: int
             Number of atoms in which decompose the input matrix.
 
-        dict_penalty : a sub-class of Penalty in penalty.py file,
-            optional
+        dict_penalty : a sub-class of Penalty in penalty.py file, optional
             It is applied on the dictionary and it can be L0Penalty,
             L1Penalty, L2Penalty, ElasticNetPenalty
 
-        coeff_penalty: sa sub-class of Penalty class in penalty.py file,
+        coeff_penalty: a sub-class of Penalty class in penalty.py file,
             optional
             It is applied on the coefficients and it can be L0Penalty,
             L1Penalty, L2Penalty, ElasticNetPenalty

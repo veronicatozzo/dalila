@@ -285,9 +285,9 @@ def _find_number_of_atoms(x, max_k, non_negative='none', distributed=0,
 
     jobs = 1 if distributed == 1 else cpu_count()
     gscv = GridSearchCV(estimator, params, cv=ss,
-                      n_jobs=cpu_count()-2, iid=True,
-                      refit=True,
-                      verbose=1)
+                        n_jobs=jobs, iid=True,
+                        refit=True,
+                        verbose=1)
 
     if distributed == 2:
         register_parallel_backend('distributed', DistributedBackend)
@@ -309,7 +309,7 @@ def _find_penalties(x, estimator,
     params = _get_params(estimator, dict_penalty_range, coeff_penalty_range)
 
     jobs = 1 if distributed == 1 else cpu_count()
-    gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=(cpu_count()-5),
+    gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=jobs,
                         iid=True,  refit=True, verbose=1)
     if distributed == 2:
         register_parallel_backend('distributed', DistributedBackend)
@@ -337,7 +337,7 @@ def _find_everything(x, estimator, max_k,
 
     jobs = 1 if distributed == 1 else cpu_count()
     gscv = GridSearchCV(estimator, params, cv=ss,
-                        n_jobs=cpu_count() - 2, iid=True, refit=True,
+                        n_jobs=jobs, iid=True, refit=True,
                         verbose=1)
 
     if distributed == 2:
