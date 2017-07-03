@@ -54,7 +54,6 @@ class DictionaryLearning(BaseEstimator):
             if 'coeff' non-negativity is applied only on the matrix of the
             coefficients.
 
-
         random_state: RandomState or int
             Seed to be use to initialise np.random.RandomState. If None each
             time RandomState is randomly initialised.
@@ -229,10 +228,11 @@ class DictionaryLearning(BaseEstimator):
             -log(k)*log(n_samples) - 2.3*(self.objective_function_value())
             the highest is the score and better the decomposition is.
         """
+
         if self.X is None:
             return float("-inf")
-        return - (np.log(self.X.shape[0])*np.log(self.k) \
-                    + 2.3*np.log(self.objective_function_value()))
+        return - (np.log(self.X.shape[0])*self.k \
+                    + 2 * np.linalg.norm(self.X - self.C.dot(self.D))**2)
 
     def _alternating_proximal_gradient_minimization(self, random_state,
                                                     n_iter=20000,

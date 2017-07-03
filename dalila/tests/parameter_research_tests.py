@@ -11,7 +11,7 @@ from dalila.dataset_generator import synthetic_data_negative
 @raises(TypeError)
 def wrong_estimator_test():
     X = np.random.rand(10, 10)
-    res = tune_parameters_DL(X, "")
+    tune_parameters_DL(X, "")
 
 
 @raises(ValueError)
@@ -20,7 +20,7 @@ def wrong_range1_test():
     estimator = DictionaryLearning(k=5, coeff_penalty=L1Penalty(1),
                                    dict_penalty=(L1Penalty(2)),
                                    non_negativity="coeff")
-    res = tune_parameters_DL(X, estimator, analysis=1, distributed=0,
+    tune_parameters_DL(X, estimator, analysis=1, distributed=0,
                              dict_penalty_range=(0.0001, 1),
                              coeff_penalty_range=(0.0001, 1))
 
@@ -31,7 +31,7 @@ def wrong_range2_test():
     estimator = DictionaryLearning(k=5, coeff_penalty=L1Penalty(1),
                                    dict_penalty=(L1Penalty(2)),
                                    non_negativity="coeff")
-    res = tune_parameters_DL(X, estimator, analysis=1, distributed=0,
+    tune_parameters_DL(X, estimator, analysis=1, distributed=0,
                              dict_penalty_range=(-1, 1, 5),
                              coeff_penalty_range=(-1, 1, 5))
 
@@ -39,23 +39,21 @@ def wrong_range2_test():
 @raises(TypeError)
 def wrong_estimator_RL_test():
     X = np.random.rand(10, 10)
-    D = np.random.rand(10, 10)
-    res = tune_parameters_RL(X, D, "")
+    tune_parameters_RL(X, "")
 
 
 @raises(ValueError)
 def none_estimator_test():
     X = np.random.rand(10, 10)
-    D = np.random.rand(10, 10)
-    res = tune_parameters_RL(X, D, None)
+    tune_parameters_RL(X, None)
 
 
 @raises(ValueError)
 def wrong_range_test():
     X, _, D = synthetic_data_negative()
-    estimator = RepresentationLearning(penalty=L1Penalty(1),
+    estimator = RepresentationLearning(D, penalty=L1Penalty(1),
                                        non_negativity=1)
-    res = tune_parameters_RL(X, D, estimator, distributed=0,
+    tune_parameters_RL(X, estimator, distributed=0,
                              coeff_penalty_range=(0.0001, 1))
 
 

@@ -29,4 +29,3 @@ def synthetic_data_non_negative_generator_test():
     assert C.shape == (80, 7)
 
 
-# TODO: test sul generatore dati della vane

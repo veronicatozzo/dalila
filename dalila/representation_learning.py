@@ -29,6 +29,9 @@ class RepresentationLearning(BaseEstimator):
         Parameters
         ----------
 
+        D: array_like or sparse matrix, shape= (n_atoms, n_features)
+            The dictionary.
+
         penalty: a sub-class of Penalty class in penalty.py file, optional
             It is applied on the coefficients and it can be
             - L0Penalty
@@ -48,16 +51,16 @@ class RepresentationLearning(BaseEstimator):
 
        """
 
-    def __init__(self, penalty=None, non_negativity=0, random_state=None):
+    def __init__(self, D,  penalty=None, non_negativity=0, random_state=None):
 
         self.penalty = penalty
         self.non_negativity = non_negativity
         self.random_state = random_state
         self.X = None
-        self.D = None
+        self.D = D
         self.C = None
 
-    def fit(self, x, d, backtracking=0, n_iter=20000):
+    def fit(self, x, backtracking=0, n_iter=20000):
 
         """Function that fits the estimator on the matrices X and D.
 
@@ -72,9 +75,6 @@ class RepresentationLearning(BaseEstimator):
 
         x : array-like or sparse matrix shape =  (n_samples, n_features)
             The matrix to decompose.
-
-        d: array_like or sparse matrix, shape= (n_atoms, n_features)
-            The dictionary.
 
         backtracking: bool, optional
             If True a procedure of backtracking is done on the step in order
@@ -92,9 +92,8 @@ class RepresentationLearning(BaseEstimator):
 
         # ______________ parameters control________________________________#
         x = check_array(x)
-        d = check_array(d)
+        self.D = check_array(self.D)
         self.X = x
-        self.D = d
         random_state = check_random_state(self.random_state)
         self.penalty = _check_penalty(self.penalty)
 
@@ -195,9 +194,8 @@ class RepresentationLearning(BaseEstimator):
         """
         if self.X is None:
             return float("-inf")
-        n = self.X.shape[1]
         return - (np.log(self.X.shape[0])
-                  + 2.3 * np.log(self.objective_function_value()))
+                  + 2 * np.linalg.norm(self.X - self.C.dot(self.D)) ** 2)
 
     def _proximal_gradient_minimization(self, random_state, backtracking=0,
                                         n_iter=20000):

@@ -54,9 +54,9 @@ from dalila.dataset_generator import synthetic_data_non_negative
 
 X, _, D = synthetic_data_non_negative()
 penalty = L1Penalty(1.) # 1. is the regularization parameter
-estimator = RepresentationLearning(penalty=penalty,
+estimator = RepresentationLearning(D, penalty=penalty,
                                    non_negativity=True)
-estimator.fit(X, D)
+estimator.fit(X)
 C = estimator.coefficients()
 ```
 
