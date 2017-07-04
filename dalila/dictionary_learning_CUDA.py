@@ -11,10 +11,17 @@ from sklearn.utils import check_random_state
 from dalila.utils import non_negative_projection, _check_non_negativity,\
                          _compute_clusters_and_silhouettes
 from dalila.penalty import Penalty
+import pycuda.gpuarray as gpuarray
+from pycuda import driver
+import pycuda.autoinit
+import skcuda.cublas as cublas
+import skcuda.misc as misc
+import skcuda.linalg as linalg
+linalg.init()
 
 
 ###############################################################################
-class DictionaryLearning(BaseEstimator):
+class DictionaryLearningGPU(BaseEstimator):
 
     def __init__(self, k, dict_penalty=None, coeff_penalty=None,
                  dict_normalization=0, non_negativity='none',
@@ -37,10 +44,6 @@ class DictionaryLearning(BaseEstimator):
         self.X = x
         n, p = x.shape
         random_state = check_random_state(self.random_state)
-        self.dict_penalty = _check_penalty(self.dict_penalty)
-        self.coeff_penalty = _check_penalty(self.coeff_penalty)
-        _check_number_of_atoms(self.k, p, n)
-        _check_non_negativity(self.non_negativity, x)
 
         logging.debug("Starting procedure with " +
                       str(self.k)+" number of atoms")
@@ -68,40 +71,6 @@ class DictionaryLearning(BaseEstimator):
 
 
     def objective_function_value(self, x=None, d=None, c=None):
-        """
-
-        Parameters
-        ----------
-        x : array-like, shape=(n_samples, n_features)
-            The matrix to be decomposed.
-
-        d: array_like, shape=(n_atoms, n_features)
-            The dictionary.
-
-        c: array-like, shape=(n_samples, n_atoms)
-            The matrix of coefficients
-
-        If one of the three is None the internal decomposition is taken, if no
-        decomposition is available NaN is returned.
-
-        Returns
-        -------
-        float:
-            The value of the objective function.
-        """
-        if x is None:
-            x = self.X
-            if x is None:
-                logging.warning('Called objective function value with no'
-                                'matrices before calling fit. \n'
-                                'Impossible to return an objective function '
-                                'value')
-                return float('NaN')
-
-        if d is None:
-            d = self.D
-        if c is None:
-            c = self.C
 
         reconstruction = np.linalg.norm(x - c.dot(d))**2
         penalty_dictionary = self.dict_penalty.value(d)
@@ -115,80 +84,47 @@ class DictionaryLearning(BaseEstimator):
     def _alternating_proximal_gradient_minimization(self, random_state,
                                                     n_iter=20000,
                                                     backtracking=0):
-        x = self.X
-        n, p = x.shape
-        d = non_negative_projection(random_state.rand(self.k, p)*10-5,
-                                    self.non_negativity, 'dict')
-        c = non_negative_projection(random_state.rand(n, self.k)*10-5,
-                                    self.non_negativity, 'coeff')
+        n, p = self.X.shape
 
-        gamma_c = 1.1
-        gamma_d = gamma_c
-        step_d, step_c = _step_lipschitz(d, c,
-                                         gamma_d=gamma_d, gamma_c=gamma_c)
-        epsilon = 1e-4
-        objective = self.objective_function_value(d=d, c=c)
+        rand_D = non_negative_projection(random_state.rand(self.k, p)*10-5,
+                                self.non_negativity, 'dict').astype(np.float32)
+        rand_C = non_negative_projection(random_state.rand(n, self.k)*10-5,
+                                self.non_negativity, 'coeff').astype(np.float32)
+        x = gpuarray.to_gpu(self.X.astype(np.float32))
+        d = gpuarray.to_gpu(rand_D)
+        c = gpuarray.to_gpu(rand_C)
 
-        d_old = d
-        c_old = c
-        logging.debug("Starting optimization")
-        for i in range(n_iter):
-            gradient_d = c.T.dot(c.dot(d) - x)
-            gradient_c = (c.dot(d) - x).dot(d.T)
+        norm_d = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(d), d))
+        step_c = np.float32(1) / norm_d
 
-            if backtracking:
-                d, c = self._update_with_backtracking(d, c, gradient_d,
-                                                      gradient_c, step_d,
-                                                      step_c)
-            else:
-                d, c = self._simple_update(d, c, gradient_d, gradient_c,
-                                           step_d, step_c)
+        norm_c = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(c), c))
+        step_d = np.float32(1) / norm_c
 
-            new_objective = self.objective_function_value(d=d, c=c)
-            difference_objective = new_objective - objective
-            objective = new_objective
-            difference_d = np.linalg.norm(d - d_old)
-            difference_c = np.linalg.norm(c - c_old)
-            d_old = d
-            c_old = c
+        epsilon = np.float32(1e-4)
+        old_objective = linalg.norm(linalg.dot(c,d)-x)
+        for i in range(1000):
+            print(c.dtype)
+            print(d.dtype)
+            print(x.dtype)
+            subtraction = misc.subtract(linalg.dot(c, d), x)
+            print(subtraction.dtype)
+            gradient_d = linalg.dot(linalg.transpose(c), subtraction)
+            gradient_c = linalg.dot(subtraction, linalg.transpose(d))
 
-            step_d, step_c = _step_lipschitz(d, c,
-                                             gamma_c=gamma_c, gamma_d=gamma_d)
+            d = misc.subtract(d, step_d*gradient_d)
+            c = misc.subtract(c, step_c *  gradient_c)
 
-            logging.debug("Iteration: "+str(i))
-            logging.debug("Objective function: "+str(objective))
-            logging.debug("Difference between new objective and "
-                          "previous one: "+str(difference_objective))
-            logging.debug("Difference between previous and new dictionary: " +
-                          str(difference_d))
-            logging.debug("Difference between previous and new coefficients:" +
-                          str(difference_c)+"`\n\n")
+            new_objective = linalg.norm(linalg.dot(c,d)-x)
+            difference_objective = misc.subtract(new_objective, old_objective)
+            old_objective = new_objective
 
-            assert ((not np.isnan(difference_objective)) and
-                    (not np.isinf(difference_objective)) and
-                    (abs(difference_objective) < 1e+20))
+            norm_d = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(d), d))
+            step_c = np.float32(1) / norm_d
 
-            if (abs(difference_objective) <= epsilon and
-                    difference_d <= epsilon and
-                    difference_c <= epsilon):
+            norm_c = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(c), c))
+            step_d = np.float32(1) / norm_c
+
+            if abs(difference_objective) <= epsilon:
                 break
 
-        return d, c
-
-    def _simple_update(self, d, c, gradient_d, gradient_c,
-                       step_d, step_c):
-        d = self.dict_penalty. \
-            apply_prox_operator(d - step_d * gradient_d, gamma=step_d)
-        d = non_negative_projection(d, self.non_negativity, 'dict')
-
-        c = self.coeff_penalty. \
-            apply_prox_operator(c - step_c * gradient_c, gamma=step_c)
-        c = non_negative_projection(c, self.non_negativity, 'coeff')
-        return d, c
-
-
-
-
-
-
-
+        return d.get(), c.get()

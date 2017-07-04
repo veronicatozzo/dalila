@@ -6,6 +6,9 @@ import numpy as np
 from itertools import product, combinations, chain
 import bintrees
 
+import pycuda.gpuarray as gpuarray
+import skcuda.linalg as linalg
+import skcuda.misc as misc
 
 class Penalty:
     """
@@ -65,8 +68,16 @@ class L1Penalty(Penalty):
         if self._lambda < 0:
             logging.error("A negative regularization parameter was used")
             raise ValueError("A negative regularization parameter was used")
+        if type(x) == gpuarray.GPUArray:
+            return self._prox_GPU(x, gamma)
+        else:
+            return self.apply_by_row(x, gamma)
 
-        return self.apply_by_row(x, gamma)
+    def _prox_GPU(self, x, gamma):
+        sign = np.sign(x)
+        np.maximum(np.abs(x) - (self._lambda*gamma), 0, out=x)
+        x *= sign
+        return x
 
     def prox_operator(self, x, gamma):
         sign = np.sign(x)
@@ -110,8 +121,17 @@ class L2Penalty(Penalty):
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
 
-        return self.apply_by_row(x, gamma)
+        if type(x) == gpuarray.GPUArray:
+            return self._prox_GPU(x, gamma)
+        else:
+            return self.apply_by_row(x, gamma)
 
+    def _prox_GPU(self, x, gamma):
+        sign = np.sign(x)
+        np.maximum(np.abs(x) - (self._lambda*gamma), 0, out=x)
+        x *= sign
+        return x
+        
     def prox_operator(self, x, gamma):
         norm = np.linalg.norm(x) + 1e-10  # added constant for stability
         x *= max(1 - (gamma*self._lambda) / norm, 0)
@@ -411,5 +431,3 @@ class LInfPenalty(Penalty):
 
     def _is_leaf(self, v):
         return v.left is None and v.right is None
-
-
