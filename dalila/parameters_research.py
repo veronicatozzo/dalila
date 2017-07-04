@@ -80,8 +80,8 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
 
     scoring_function: callable or None, default=None
         A scorer callable object / function with signature
-        scorer(estimator, X, y). If None, the score method of the estimator is
-        used.
+        scorer(estimator, X, y=None). If None, the score method of the
+        estimator is used.
 
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
@@ -191,7 +191,8 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
 
 def tune_parameters_RL(X, estimator, non_negative=0,  distributed=0,
                        scheduler_host="", coeff_penalty_range=(0.0001, 1, 10),
-                       fit_params={}, random_state=None):
+                       fit_params={}, scoring_function=None,
+                       random_state=None):
     """
     Parameters tuner.
 
@@ -229,6 +230,11 @@ def tune_parameters_RL(X, estimator, non_negative=0,  distributed=0,
 
     fit_params: dictionary, optional
         The parameters to pass to the fitting procedure during GridSearch.
+
+    scoring_function: callable or None, default=None
+        A scorer callable object / function with signature
+        scorer(estimator, X, y=None). If None, the score method of the
+        estimator is used.
 
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
@@ -269,7 +275,8 @@ def tune_parameters_RL(X, estimator, non_negative=0,  distributed=0,
 
     jobs = 1 if distributed == 1 else cpu_count()
     gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=(cpu_count() - 5),
-                        fit_params=fit_params, iid=True, refit=True, verbose=1)
+                        fit_params=fit_params, iid=True, refit=True,
+                        scoring=scoring_function, verbose=1)
     if distributed == 2:
         register_parallel_backend('distributed', DistributedBackend)
         with parallel_backend('distributed',
