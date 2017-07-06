@@ -8,9 +8,11 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
-from dalila.utils import non_negative_projection, _check_non_negativity,\
+from dalila.utils import _non_negative_projection, _check_non_negativity,\
                          _compute_clusters_and_silhouettes
 from dalila.penalty import Penalty
+from dalila.gpu_procedures import _non_negative_projection_GPU
+
 import pycuda.gpuarray as gpuarray
 from pycuda import driver
 import pycuda.autoinit
@@ -44,6 +46,11 @@ class DictionaryLearningGPU(BaseEstimator):
         self.X = x
         n, p = x.shape
         random_state = check_random_state(self.random_state)
+        self.dict_penalty = _check_penalty(self.dict_penalty)
+        self.coeff_penalty = _check_penalty(self.coeff_penalty)
+        _check_number_of_atoms(self.k, p, n)
+        _check_non_negativity(self.non_negativity, x)
+
 
         logging.debug("Starting procedure with " +
                       str(self.k)+" number of atoms")
@@ -86,13 +93,13 @@ class DictionaryLearningGPU(BaseEstimator):
                                                     backtracking=0):
         n, p = self.X.shape
 
-        rand_D = non_negative_projection(random_state.rand(self.k, p)*10-5,
-                                self.non_negativity, 'dict').astype(np.float32)
-        rand_C = non_negative_projection(random_state.rand(n, self.k)*10-5,
-                                self.non_negativity, 'coeff').astype(np.float32)
         x = gpuarray.to_gpu(self.X.astype(np.float32))
-        d = gpuarray.to_gpu(rand_D)
-        c = gpuarray.to_gpu(rand_C)
+        d = gpuarray.to_gpu((random_state.rand(self.k, p) * 10 - 5)
+                            .astype(np.float32))
+        d = _non_negative_projection_GPU(d, self.non_negativity, 'dict')
+        c = gpuarray.to_gpu((random_state.rand(n, self.k) * 10 - 5)
+                            .astype(np.float32))
+        c = _non_negative_projection_GPU(c, self.non_negativity, 'coeff')
 
         norm_d = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(d), d))
         step_c = np.float32(1) / norm_d
@@ -102,21 +109,28 @@ class DictionaryLearningGPU(BaseEstimator):
 
         epsilon = np.float32(1e-4)
         old_objective = linalg.norm(linalg.dot(c,d)-x)
+        d_old = d.copy()
+        c_old = c.copy()
         for i in range(1000):
-            print(c.dtype)
-            print(d.dtype)
-            print(x.dtype)
             subtraction = misc.subtract(linalg.dot(c, d), x)
-            print(subtraction.dtype)
             gradient_d = linalg.dot(linalg.transpose(c), subtraction)
             gradient_c = linalg.dot(subtraction, linalg.transpose(d))
 
-            d = misc.subtract(d, step_d*gradient_d)
-            c = misc.subtract(c, step_c *  gradient_c)
+            d = self.dict_penalty. \
+                apply_prox_operator(misc.subtract(d, step_d*gradient_d), step_d)
+            d = _non_negative_projection_GPU(d, self.non_negativity, 'dict')
+            c = self.coeff_penalty. \
+                apply_prox_operator(misc.subtract(c, step_c *  gradient_c), step_c)
+            c = _non_negative_projection_GPU(c, self.non_negativity, 'coeff')
 
             new_objective = linalg.norm(linalg.dot(c,d)-x)
             difference_objective = misc.subtract(new_objective, old_objective)
             old_objective = new_objective
+
+            difference_d = linalg.norm(misc.subtract(d, d_old))
+            difference_c = linalg.norm(misc.subtract(c,c_old))
+            d_old = d.copy()
+            c_old = c.copy()
 
             norm_d = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(d), d))
             step_c = np.float32(1) / norm_d
@@ -124,7 +138,44 @@ class DictionaryLearningGPU(BaseEstimator):
             norm_c = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(c), c))
             step_d = np.float32(1) / norm_c
 
-            if abs(difference_objective) <= epsilon:
+
+            if (abs(difference_objective) <= epsilon and
+                    difference_d <= epsilon and
+                    difference_c <= epsilon):
                 break
 
         return d.get(), c.get()
+
+
+
+def _check_penalty(penalty):
+
+    if penalty is None:
+        return Penalty()
+
+    if not isinstance(penalty, Penalty):
+        logging.warning('The penalty is not a subclass of the '
+                        'right type.')
+        raise TypeError('The penalty is not a subclass of the '
+                        'right type.')
+
+    return penalty
+
+
+def _check_number_of_atoms(k, p, n):
+    if k is None:
+        logging.warning('No number of atoms was given. '
+                        'Impossible to do optimization.')
+        raise ValueError('No number of atoms was given. '
+                        'Impossible to do optimization.')
+    if k <= 0 or k > min(n, p):
+        logging.warning('The number of atoms must be greater than zero '
+                        'and less than the min of the dimensions of X.')
+        raise ValueError('The number of atoms must be greater than zero '
+                        'and less than the min of the dimensions of X.')
+
+
+def _sampling(X, random_state):  # sampling with replacement
+    selected = random_state.randint(0, high=X.shape[0],
+                                    size=(X.shape[0]))
+    return X[selected, :]
