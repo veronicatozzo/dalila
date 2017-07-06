@@ -5,10 +5,12 @@ import logging
 import numpy as np
 from itertools import product, combinations, chain
 import bintrees
-
 import pycuda.gpuarray as gpuarray
+import pycuda.cumath as cumath
+import pycuda.autoinit
 import skcuda.linalg as linalg
 import skcuda.misc as misc
+linalg.init()
 
 class Penalty:
     """
@@ -17,26 +19,26 @@ class Penalty:
 
     def apply_by_row(self, x, gamma):
         if x.ndim < 2:
-            return self.prox_operator(x, gamma)
+            return self._prox_operator(x, gamma)
         else:
             new_x = np.zeros_like(x)
             for r in range(0, x.shape[0]):
-                new_x[r, :] = self.prox_operator(x[r, :], gamma)
+                new_x[r, :] = self._prox_operator(x[r, :], gamma)
         return new_x
 
     def apply_by_col(self, x, gamma):
         if x.ndim < 2:
-            return self.prox_operator(x, gamma)
+            return self._prox_operator(x, gamma)
         else:
             new_x = np.zeros_like(x)
             for c in range(0, x.shape[1]):
-                new_x[:, c] = self.prox_operator(x[:, c], gamma)
+                new_x[:, c] = self._prox_operator(x[:, c], gamma)
             return new_x
 
     def apply_prox_operator(self, x, gamma):
         return x
 
-    def prox_operator(self, x, gamma):
+    def _prox_operator(self, x, gamma):
         return x
 
     def make_grid(self):
@@ -69,17 +71,24 @@ class L1Penalty(Penalty):
             logging.error("A negative regularization parameter was used")
             raise ValueError("A negative regularization parameter was used")
         if type(x) == gpuarray.GPUArray:
-            return self._prox_GPU(x, gamma)
+            x = x.get()
+        #     return self._prox_GPU(x, gamma)
+        # else:
+            x = self.apply_by_row(x, gamma)
+            return gpuarray.to_gpu(x.astype(np.float32))
         else:
             return self.apply_by_row(x, gamma)
 
     def _prox_GPU(self, x, gamma):
-        sign = np.sign(x)
-        np.maximum(np.abs(x) - (self._lambda*gamma), 0, out=x)
-        x *= sign
-        return x
+        #print("sono in prog GPU l1")
+        ones = gpuarray.to_gpu(np.ones(x.shape).astype(np.float32))
+        sign = gpuarray.if_positive(x, ones, -1*ones)
+        zeros = gpuarray.zeros_like(x)
+        x = gpuarray.maximum(zeros, cumath.fabs(x)-self._lambda*gamma)
+        return linalg.multiply(sign, x, overwrite=True)
 
-    def prox_operator(self, x, gamma):
+
+    def _prox_operator(self, x, gamma):
         sign = np.sign(x)
         np.maximum(np.abs(x) - (self._lambda*gamma), 0, out=x)
         x *= sign
@@ -127,12 +136,15 @@ class L2Penalty(Penalty):
             return self.apply_by_row(x, gamma)
 
     def _prox_GPU(self, x, gamma):
-        sign = np.sign(x)
-        np.maximum(np.abs(x) - (self._lambda*gamma), 0, out=x)
-        x *= sign
-        return x
-        
-    def prox_operator(self, x, gamma):
+         print("sono nel prox GPU di l2")
+         for r in range(x.shape[0]):
+             norm = linalg.norm(x[r,:]) + 1e-10
+             constant = max(1 - (gamma*self._lambda) / norm, 0)
+             x[r,:] = x[r,:]*np.float32(constant)
+         return x
+
+
+    def _prox_operator(self, x, gamma):
         norm = np.linalg.norm(x) + 1e-10  # added constant for stability
         x *= max(1 - (gamma*self._lambda) / norm, 0)
         return x
@@ -188,9 +200,22 @@ class ElasticNetPenalty(Penalty):
             raise ValueError("The alpha value of elastic net penalty has to be "
                           "in the interval [0,1]")
 
-        return self.apply_by_row(x, gamma)
+        if type(x) == gpuarray.GPUArray:
+            return self._prox_GPU(x, gamma)
+        else:
+            return self.apply_by_row(x, gamma)
 
-    def prox_operator(self, x, gamma):
+    def _prox_GPU(self, x, gamma):
+        print("sono in prog GPU elasticnet")
+        ones = gpuarray.to_gpu(np.ones(x.shape).astype(np.float32))
+        sign = gpuarray.if_positive(x, ones, -1*ones)
+        zeros = gpuarray.zeros_like(x)
+        x = gpuarray.maximum(zeros, cumath.fabs(x)-self._lambda1*gamma)
+        linalg.multiply(sign, x, overwrite=True)
+        return x / np.float32(1. + self.alpha * self._lambda2 * gamma)
+
+
+    def _prox_operator(self, x, gamma):
         sign = np.sign(x)
         np.maximum(np.abs(x) - (self._lambda1 * gamma), 0, out=x)
         x *= sign
@@ -248,9 +273,25 @@ class L0Penalty(Penalty):
             raise ValueError("The number of non-zero elements to impose with "
                              "L0 penalty cannot be higher than the number of "
                              "features")
-        return self.apply_by_row(x, gamma)
+        if type(x) == gpuarray.GPUArray:
+            return self._prox_GPU(x, gamma)
+        else:
+            return self.apply_by_row(x, gamma)
 
-    def prox_operator(self, x, gamma):
+    def _prox_GPU(self, x, gamma):
+        rows, cols = x.shape
+        for r in range(rows):
+            copy = gpuarray.zeros((2,cols), np.float32)
+            copy[0,:] = x[r,:].copy()
+            result = gpuarray.zeros_like(x[r,:])
+            for i in range(self.s+1):
+                index = misc.argmax(copy, axis=1).get()[0]
+                result[index] = copy[0, index]
+                copy[0,index].set(np.array([-float("inf")]).astype(np.float32))
+            x[r,:] = result
+        return x
+
+    def _prox_operator(self, x, gamma):
         indices = np.argsort(x)
         x_new = np.zeros_like(x)
         x_new[indices[-self.s:]] = x[indices[-self.s:]]
@@ -308,13 +349,25 @@ class GroupLassoPenalty(Penalty):
                 logging.error("There are overlapping groups")
                 raise ValueError("There are overlapping groups")
 
-        new_x = np.zeros_like(x)
+        if type(x) == gpuarray.GPUArray:
+            new_x = gpuarray.empty_like(x)
+        else:
+            new_x = np.zeros_like(x)
         for r in range(0, x.shape[0]):
             for g in self._groups:
-                new_x[r, g] = self.prox_operator(x[r, g], gamma)
+                if type(x) == gpuarray.GPUArray:
+                    new_x[r,g] = self._prox_GPU(x[r, g], gamma)
+                else:
+                    new_x[r,g] = self.apply_by_row(x[r, g], gamma)
         return new_x
 
-    def prox_operator(self, x, gamma):
+
+    def _prox_GPU(self, x, gamma):
+        norm = linalg.norm(x)
+        constant = max(1 - (gamma*self._lambda) / norm, 0)
+        return x*constant
+
+    def _prox_operator(self, x, gamma):
         if np.linalg.norm(x) < self._lambda*gamma:
             return np.zeros_like(x)
         x *= (1 - (self._lambda*gamma)/np.linalg.norm(x))
@@ -346,9 +399,9 @@ class LInfPenalty(Penalty):
         if self._lambda < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
-        return self.apply_by_row(x, gamma)
+        return self.apply_by_col(x, gamma)
 
-    def prox_operator(self, x, gamma):
+    def _prox_operator(self, x, gamma):
         # norm = np.linalg.norm(x) + 1e-10  # added constant for stability
         # x *= max(1 - (gamma*self._lambda) / norm, 0)
         x -= gamma*self._lambda * \

@@ -8,9 +8,7 @@ from sklearn.utils import check_random_state
 import numpy as np
 
 
-def non_negative_projection(x, nn, matrix_type=None):
-    if matrix_type is None and nn:
-        np.maximum(x, 0, out=x)
+def _non_negative_projection(x, nn, matrix_type=None):
     if nn == 'both' or nn == matrix_type:
         np.maximum(x, 0, out=x)
     return x

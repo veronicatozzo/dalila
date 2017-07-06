@@ -7,7 +7,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
-from dalila.utils import non_negative_projection
+from dalila.utils import _non_negative_projection
 from dalila.dictionary_learning import _check_penalty
 
 
@@ -203,8 +203,8 @@ class RepresentationLearning(BaseEstimator):
         d = self.D
         n, p = x.shape
         k, _ = d.shape
-        c = non_negative_projection(random_state.rand(n, k)*10-5,
-                                    self.non_negativity)
+        c = _non_negative_projection(random_state.rand(n, k) * 10 - 5,
+                                     self.non_negativity)
 
         gamma = 1.1
         step = _step_lipschitz(d, gamma)
@@ -251,7 +251,7 @@ class RepresentationLearning(BaseEstimator):
     def _simple_update(self, c, gradient, step):
         c = self.penalty. \
             apply_prox_operator(c - step * gradient, gamma=step)
-        c = non_negative_projection(c, self.non_negativity)
+        c = _non_negative_projection(c, self.non_negativity)
         return c
 
     def _update_with_backtracking(self, x, d, c, gradient, step):
@@ -262,7 +262,7 @@ class RepresentationLearning(BaseEstimator):
             # compute new matrices
             c_1 = self.penalty. \
                 apply_prox_operator(c_0 - step * gradient, gamma=step)
-            c_1 = non_negative_projection(c_1, self.non_negativity)
+            c_1 = _non_negative_projection(c_1, self.non_negativity)
             difference_c = np.linalg.norm(c_1 - c_0)
 
             first_part = self.objective_function_value(d=d, c=c_1)

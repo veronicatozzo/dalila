@@ -2,13 +2,12 @@ from __future__ import division
 
 import numpy as np
 import logging
-import matplotlib.pyplot as plt
 
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
-from dalila.utils import non_negative_projection, _check_non_negativity,\
+from dalila.utils import _non_negative_projection, _check_non_negativity,\
                          _compute_clusters_and_silhouettes
 from dalila.penalty import Penalty
 
@@ -239,10 +238,10 @@ class DictionaryLearning(BaseEstimator):
                                                     backtracking=0):
         x = self.X
         n, p = x.shape
-        d = non_negative_projection(random_state.rand(self.k, p)*10-5,
-                                    self.non_negativity, 'dict')
-        c = non_negative_projection(random_state.rand(n, self.k)*10-5,
-                                    self.non_negativity, 'coeff')
+        d = _non_negative_projection(random_state.rand(self.k, p) * 10 - 5,
+                                     self.non_negativity, 'dict')
+        c = _non_negative_projection(random_state.rand(n, self.k) * 10 - 5,
+                                     self.non_negativity, 'coeff')
 
         gamma_c = 1.1
         gamma_d = gamma_c
@@ -301,11 +300,11 @@ class DictionaryLearning(BaseEstimator):
                        step_d, step_c):
         d = self.dict_penalty. \
             apply_prox_operator(d - step_d * gradient_d, gamma=step_d)
-        d = non_negative_projection(d, self.non_negativity, 'dict')
+        d = _non_negative_projection(d, self.non_negativity, 'dict')
 
         c = self.coeff_penalty. \
             apply_prox_operator(c - step_c * gradient_c, gamma=step_c)
-        c = non_negative_projection(c, self.non_negativity, 'coeff')
+        c = _non_negative_projection(c, self.non_negativity, 'coeff')
         return d, c
 
     def _update_with_backtracking(self, d, c, gradient_d, gradient_c,
@@ -319,12 +318,12 @@ class DictionaryLearning(BaseEstimator):
             # compute new matrices
             d_1 = self.dict_penalty. \
                 apply_prox_operator(d_0 - step_d * gradient_d, gamma=step_d)
-            d_1 = non_negative_projection(d_1, self.non_negativity, 'dict')
+            d_1 = _non_negative_projection(d_1, self.non_negativity, 'dict')
             difference_d = np.linalg.norm(d_1 - d_0)
 
             c_1 = self.coeff_penalty. \
                 apply_prox_operator(c_0 - step_c * gradient_c, gamma=step_c)
-            c_1 = non_negative_projection(c_1, self.non_negativity, 'coeff')
+            c_1 = _non_negative_projection(c_1, self.non_negativity, 'coeff')
             difference_c = np.linalg.norm(c_1 - c_0)
 
             first_part = self.objective_function_value(d=d_1, c=c_1)
