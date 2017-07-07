@@ -60,6 +60,8 @@ computed on the objective function value.
 #### Pip installation
 `$ pip install dalila`
 
+#### Conda installation
+`$ conda install dalila`
 
 #### Installing from sources
 ```bash
