@@ -238,10 +238,10 @@ class DictionaryLearning(BaseEstimator):
                                                     backtracking=0):
         x = self.X
         n, p = x.shape
-        d = _non_negative_projection(random_state.rand(self.k, p) * 10 - 5,
-                                     self.non_negativity, 'dict')
-        c = _non_negative_projection(random_state.rand(n, self.k) * 10 - 5,
-                                     self.non_negativity, 'coeff')
+        d = _non_negative_projection(random_state.rand(self.k, p)*10-5,
+                                    self.non_negativity, 'dict')
+        c = _non_negative_projection(random_state.rand(n, self.k)*10-5,
+                                    self.non_negativity, 'coeff')
 
         gamma_c = 1.1
         gamma_d = gamma_c
@@ -555,5 +555,3 @@ def _sampling(X, random_state):  # sampling with replacement
     selected = random_state.randint(0, high=X.shape[0],
                                     size=(X.shape[0]))
     return X[selected, :]
-
-

@@ -203,8 +203,8 @@ class RepresentationLearning(BaseEstimator):
         d = self.D
         n, p = x.shape
         k, _ = d.shape
-        c = _non_negative_projection(random_state.rand(n, k) * 10 - 5,
-                                     self.non_negativity)
+        c = _non_negative_projection(random_state.rand(n, k)*10-5,
+                                    self.non_negativity)
 
         gamma = 1.1
         step = _step_lipschitz(d, gamma)
@@ -282,8 +282,3 @@ class RepresentationLearning(BaseEstimator):
 def _step_lipschitz(d, gamma_c):
     step_c = max(0.0001, gamma_c * np.linalg.norm(d.T.dot(d)))
     return 1/step_c
-
-
-
-
-

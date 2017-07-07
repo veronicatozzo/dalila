@@ -12,6 +12,12 @@ import skcuda.linalg as linalg
 import skcuda.misc as misc
 linalg.init()
 
+import pycuda.gpuarray as gpuarray
+import pycuda.autoinit
+
+from dalila.gpu_procedures import L1prox, L2prox, ENprox
+
+
 class Penalty:
     """
     Super class that represents a general empty penalty.
@@ -79,6 +85,9 @@ class L1Penalty(Penalty):
         else:
             return self.apply_by_row(x, gamma)
 
+        if type(x) == gpuarray.GPUArray:
+            return self._prox_gpu(x, gamma)
+        return self.apply_by_row(x, gamma)
     def _prox_GPU(self, x, gamma):
         #print("sono in prog GPU l1")
         ones = gpuarray.to_gpu(np.ones(x.shape).astype(np.float32))
@@ -87,6 +96,12 @@ class L1Penalty(Penalty):
         x = gpuarray.maximum(zeros, cumath.fabs(x)-self._lambda*gamma)
         return linalg.multiply(sign, x, overwrite=True)
 
+    def _prox_gpu(self, x, gamma):
+        out = gpuarray.empty(x.shape, np.float32)
+        L1prox(x, np.float32(self._lambda*gamma), out, np.uint32(x.shape[0]),
+               np.uint32(x.shape[1]),
+               block=(x.shape[0], x.shape[1], 1), )
+        return out
 
     def _prox_operator(self, x, gamma):
         sign = np.sign(x)
@@ -131,10 +146,18 @@ class L2Penalty(Penalty):
             raise ValueError("A negative regularization parameter was used")
 
         if type(x) == gpuarray.GPUArray:
-            return self._prox_GPU(x, gamma)
-        else:
-            return self.apply_by_row(x, gamma)
+            return self._prox_gpu(x, gamma)
+        return self.apply_by_row(x, gamma)
 
+    def _prox_gpu(self, x, gamma):
+        out = gpuarray.empty(x.shape, np.float32)
+        L2prox(x, np.float32(self._lambda * gamma), out,
+               np.uint32(x.shape[0]),
+               np.uint32(x.shape[1]),
+               block=(x.shape[0], x.shape[1], 1), )
+        return out
+
+    def _prox_operator(self, x, gamma):
     def _prox_GPU(self, x, gamma):
          print("sono nel prox GPU di l2")
          for r in range(x.shape[0]):
@@ -201,10 +224,18 @@ class ElasticNetPenalty(Penalty):
                           "in the interval [0,1]")
 
         if type(x) == gpuarray.GPUArray:
-            return self._prox_GPU(x, gamma)
-        else:
-            return self.apply_by_row(x, gamma)
+            return self._prox_gpu(x, gamma)
+        return self.apply_by_row(x, gamma)
 
+    def _prox_gpu(self, x, gamma):
+        out = gpuarray.empty(x.shape, np.float32)
+        ENprox(x, np.float32(self._lambda1 * gamma),
+               np.float32(self.alpha * self._lambda2 * gamma),
+               out, np.uint32(x.shape[0]), np.uint32(x.shape[1]),
+               block=(x.shape[0], x.shape[1], 1), )
+        return out
+
+    def _prox_operator(self, x, gamma):
     def _prox_GPU(self, x, gamma):
         print("sono in prog GPU elasticnet")
         ones = gpuarray.to_gpu(np.ones(x.shape).astype(np.float32))
