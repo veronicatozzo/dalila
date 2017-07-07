@@ -15,9 +15,12 @@ from dalila.utils import _check_non_negativity, MonteCarloBootstrap
 
 
 def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
-                    distributed=0, scheduler_host="", max_k=None,
-                    dict_penalty_range=(0.0001, 1, 10),
-                    coeff_penalty_range=(0.0001, 1, 10), random_state=None):
+                       distributed=0, scheduler_host="", range_k=None,
+                       dict_penalty_range=(0.0001, 1, 10),
+                       coeff_penalty_range=(0.0001, 1, 10),
+                       fit_params = {},
+                       scoring_function=None,
+                       random_state=None):
     """
     Parameters tuner.
 
@@ -59,9 +62,10 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
         network. The string must be "ip_address:port", for example:
         "10.251.61.226:8786"
 
-    max_k = int, optional
-        The maximum number of atoms to try when you search for the right k.
-        If None max_k will be computed as int(min(p, 0.75 * n) / 2)
+    range_k: int or list, optional
+        The maximum number of atoms to try when you search for the right k or
+        the list of possible values to try.
+        If None range_k will be computed as int(min(p, 0.75 * n) / 2)
 
     dict_penalty_range: float tuple, optional (low, high, number)
         It gives the interval in which tune the dictionary penalty and the
@@ -70,6 +74,14 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
     coeff_penalty_range: float tuple, optional (low, high, number)
         It gives the interval in which tune the coefficient penalty and the
         number of values to try.
+
+    fit_params: dictionary, optional
+        The parameters to pass to the fitting procedure during GridSearch.
+
+    scoring_function: callable or None, default=None
+        A scorer callable object / function with signature
+        scorer(estimator, X, y=None). If None, the score method of the
+        estimator is used.
 
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
@@ -99,8 +111,8 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
             estimator.non_negativity = non_negative
 
     n, p = X.shape
-    if max_k is None:
-        max_k = int(min(p, 0.75 * n) / 2)  # generally the optimal
+    if range_k is None:
+        range_k = int(min(p, 0.75 * n) / 2)  # generally the optimal
                                            # number of k is low
 
     if (analysis in [0, 1, 3] and
@@ -115,35 +127,71 @@ def tune_parameters_DL(X, estimator=None, analysis=3, non_negative="none",
             distributed = 1
         distributed = _check_scheduler(scheduler_host)
 
+    # find first the paramaters on the dictionary and after the coefficients
     if analysis == 0:
-        return _find_everything_sequentially(X, estimator, max_k,
-                                             dict_penalty_range,
-                                             coeff_penalty_range,
-                                             distributed, scheduler_host,
-                                             random_state)
+        params = _get_params_dict(estimator,
+                                  dict_penalty_range=dict_penalty_range)
+        if type(range_k) is int:
+            params['k'] = list(range(2, range_k))
+        else:
+            params['k'] = range_k
+
+        jobs = 1 if distributed == 1 else cpu_count()
+        gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=jobs,
+                            scoring=scoring_function,
+                            iid=True, refit=True, verbose=1)
+        if distributed == 2:
+            register_parallel_backend('distributed', DistributedBackend)
+            with parallel_backend('distributed', scheduler_host=scheduler_host):
+                gscv.fit(X)
+        else:
+            gscv.fit(X)
+        estimator = gscv.best_estimator_
+        params = _get_params_coeff(estimator, coeff_penalty_range)
+    # find only the penalties together
     elif analysis == 1:
-        return _find_penalties(X, estimator, dict_penalty_range,
-                               coeff_penalty_range,
-                               distributed, scheduler_host,
-                               random_state)
+        params = _get_params(estimator, dict_penalty_range,
+                             coeff_penalty_range)
+    # find only the number of atoms
     elif analysis == 2:
-        return _find_number_of_atoms(X, max_k, non_negative,
-                                     distributed, scheduler_host,
-                                     random_state)
+        if type(range_k) is int:
+            params = {'k': list(range(2, max_k))}
+        else:
+            params = {'k': range_k}
+    # find everything together
     elif analysis == 3:
-        return _find_everything(X, estimator, max_k, dict_penalty_range,
-                                coeff_penalty_range,
-                                distributed, scheduler_host,
-                                random_state)
+        params = _get_params(estimator, dict_penalty_range,
+                             coeff_penalty_range)
+
+        if type(range_k) is int:
+            params['k'] = list(range(2, range_k))
+        else:
+            params['k'] = range_k
     else:
         logging.error("Unknown type of research, please try with another "
                       "setting")
         raise ValueError("Unkown type of research, please try with another"
                          "setting")
 
+    ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
+                             random_state=random_state)
+    jobs = 1 if distributed == 1 else cpu_count()
+    gscv = GridSearchCV(estimator, params, cv=ss, fit_params=fit_params,
+                        n_jobs=jobs, iid=True, scoring=scoring_function,
+                        refit=True, verbose=1)
+    if distributed == 2:
+        register_parallel_backend('distributed', DistributedBackend)
+        with parallel_backend('distributed',
+                              scheduler_host=scheduler_host):
+            gscv.fit(X)
+    else:
+        gscv.fit(X)
+    return gscv
 
-def tune_parameters_RL(X, D, estimator, non_negative=0,  distributed=0,
+
+def tune_parameters_RL(X, estimator, non_negative=0,  distributed=0,
                        scheduler_host="", coeff_penalty_range=(0.0001, 1, 10),
+                       fit_params={}, scoring_function=None,
                        random_state=None):
     """
     Parameters tuner.
@@ -180,6 +228,14 @@ def tune_parameters_RL(X, D, estimator, non_negative=0,  distributed=0,
         It gives the interval in which tune the coefficient penalty and the
         number of values to try.
 
+    fit_params: dictionary, optional
+        The parameters to pass to the fitting procedure during GridSearch.
+
+    scoring_function: callable or None, default=None
+        A scorer callable object / function with signature
+        scorer(estimator, X, y=None). If None, the score method of the
+        estimator is used.
+
     random_state : int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
         If RandomState instance, random_state is the random number generator;
@@ -195,14 +251,12 @@ def tune_parameters_RL(X, D, estimator, non_negative=0,  distributed=0,
 
     # ------------------parameters control ---------------------------------- #
     X = check_array(X)
-    D = check_array(D)
     random_state = check_random_state(random_state)
     _check_range(coeff_penalty_range)
     if estimator is None:
         logging.error("passed estimator was None")
         raise ValueError("passed estimator was None")
     _check_estimator(estimator)
-
 
     estimator.non_negativity = non_negative
 
@@ -213,7 +267,7 @@ def tune_parameters_RL(X, D, estimator, non_negative=0,  distributed=0,
             distributed = 1
         distributed = _check_scheduler(scheduler_host)
 
-        ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
+    ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
                                  random_state=random_state)
 
     params = _get_params_coeff(estimator, coeff_penalty_range,
@@ -221,132 +275,15 @@ def tune_parameters_RL(X, D, estimator, non_negative=0,  distributed=0,
 
     jobs = 1 if distributed == 1 else cpu_count()
     gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=(cpu_count() - 5),
-                        iid=True, refit=True, verbose=1)
+                        fit_params=fit_params, iid=True, refit=True,
+                        scoring=scoring_function, verbose=1)
     if distributed == 2:
         register_parallel_backend('distributed', DistributedBackend)
         with parallel_backend('distributed',
                               scheduler_host=scheduler_host):
-            gscv.fit(x)
+            gscv.fit(X)
     else:
-        gscv.fit(x)
-
-    return gscv
-
-
-def _find_everything_sequentially(x, estimator, max_k,
-                                  dict_penalty_range, coeff_penalty_range,
-                                  distributed=0, scheduler_host="",
-                                  random_state=None):
-
-    ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
-                             random_state=random_state)
-
-    # ---------------------first part
-    params= _get_params_dict(estimator,
-                             dict_penalty_range=dict_penalty_range)
-    params['k'] = list(range(2, max_k))
-
-    jobs = 1 if distributed == 1 else cpu_count()
-    gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=jobs,
-                        iid=True, refit=True, verbose=1)
-    if distributed == 2:
-        register_parallel_backend('distributed', DistributedBackend)
-        with parallel_backend('distributed', scheduler_host=scheduler_host):
-            gscv.fit(x)
-    else:
-        gscv.fit(x)
-    best_est_dict = gscv.best_estimator_
-
-    # ---------------------second part
-    params = _get_params_coeff(estimator, coeff_penalty_range)
-    gscv = GridSearchCV(best_est_dict, params, cv=ss,
-                        n_jobs=cpu_count() - 2, iid=True, refit=True,
-                        verbose=1)
-    if distributed==2:
-        register_parallel_backend('distributed', DistributedBackend)
-
-        with parallel_backend('distributed',
-                              scheduler_host=scheduler_host):
-            gscv.fit(x)
-    else:
-        gscv.fit(x)
-
-    return gscv
-
-
-def _find_number_of_atoms(x, max_k, non_negative='none', distributed=0,
-                          scheduler_host="", random_state=None):
-    estimator = DictionaryLearning(k=0,
-                                   non_negativity=non_negative,
-                                   random_state=None)
-    params = {'k': list(range(2, max_k))}
-    ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
-                             random_state=random_state)
-
-    jobs = 1 if distributed == 1 else cpu_count()
-    gscv = GridSearchCV(estimator, params, cv=ss,
-                      n_jobs=cpu_count()-2, iid=True,
-                      refit=True,
-                      verbose=1)
-
-    if distributed == 2:
-        register_parallel_backend('distributed', DistributedBackend)
-        with parallel_backend('distributed',
-                              scheduler_host=scheduler_host):
-            gscv.fit(x)
-    else:
-        gscv.fit(x)
-    return gscv
-
-
-def _find_penalties(x, estimator,
-                    dict_penalty_range=(0.001, 1, 10),
-                    coeff_penalty_range=(0.001, 1, 10),
-                    distributed=0, scheduler_host="", random_state=None):
-
-    ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
-                             random_state=random_state)
-    params = _get_params(estimator, dict_penalty_range, coeff_penalty_range)
-
-    jobs = 1 if distributed == 1 else cpu_count()
-    gscv = GridSearchCV(estimator, params, cv=ss, n_jobs=(cpu_count()-5),
-                        iid=True,  refit=True, verbose=1)
-    if distributed == 2:
-        register_parallel_backend('distributed', DistributedBackend)
-        with parallel_backend('distributed',
-                              scheduler_host=scheduler_host):
-            gscv.fit(x)
-    else:
-        gscv.fit(x)
-
-    return gscv
-
-
-def _find_everything(x, estimator, max_k,
-                     dict_penalty_range=(0.001, 1, 10),
-                     coeff_penalty_range=(0.001, 1, 10),
-                     distributed=0, scheduler_host="",
-                     random_state=None):
-
-    params = _get_params(estimator, dict_penalty_range,
-                              coeff_penalty_range)
-
-    ss = MonteCarloBootstrap(n_splits=3, test_size=0.1,
-                             random_state=random_state)
-    params['k'] = list(range(2, max_k))
-
-    jobs = 1 if distributed == 1 else cpu_count()
-    gscv = GridSearchCV(estimator, params, cv=ss,
-                        n_jobs=cpu_count() - 2, iid=True, refit=True,
-                        verbose=1)
-
-    if distributed == 2:
-        register_parallel_backend('distributed', DistributedBackend)
-        with parallel_backend('distributed',
-                              scheduler_host=scheduler_host):
-            gscv.fit(x)
-    else:
-        gscv.fit(x)
+        gscv.fit(X)
 
     return gscv
 
@@ -363,11 +300,15 @@ def _get_params_dict(estimator, dict_penalty_range):
 
 def _get_params_coeff(estimator, coeff_penalty_range,
                       representation_learning=0):
-    if estimator.coeff_penalty is None:
-        return {}
+    if representation_learning:
+        if estimator.penalty is None:
+            return {}
+    else:
+        if estimator.coeff_penalty is None:
+            return {}
 
     if representation_learning:
-        return {'penalty': (estimator.coeff_penalty.
+        return {'penalty': (estimator.penalty.
                              make_grid(coeff_penalty_range[0],
                                        coeff_penalty_range[1],
                                        coeff_penalty_range[2]))}

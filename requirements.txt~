@@ -4,5 +4,8 @@ numpy
 scipy
 matplotlib
 bintrees
+itertools
+logging
+multiprocessing
 distributed
 dask

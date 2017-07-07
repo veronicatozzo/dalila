@@ -6,7 +6,6 @@ from dalila.dictionary_learning import DictionaryLearning,\
                                        StabilityDictionaryLearning
 from dalila.dataset_generator import *
 
-
 @raises(TypeError)
 def wrong_penalty_type_coeff_test():
     X = np.random.rand(100,100)
@@ -27,7 +26,7 @@ def wrong_penalty_type_dict_test():
 def none_atoms_test():
     X = np.random.rand(100,100)
 
-    estimator = DictionaryLearning(k=None, dict_penalty="")
+    estimator = DictionaryLearning(k=None, dict_penalty=None)
     estimator.fit(X)
 
 
@@ -35,7 +34,7 @@ def none_atoms_test():
 def negative_atoms_test():
     X = np.random.rand(100,100)
 
-    estimator = DictionaryLearning(k=-1, dict_penalty="")
+    estimator = DictionaryLearning(k=-1, dict_penalty=None)
     estimator.fit(X)
 
 
@@ -124,7 +123,7 @@ def stability_wrong_penalty_type_dict_test():
 def stability_none_atoms_test():
     X = np.random.rand(100,100)
 
-    estimator = StabilityDictionaryLearning(k=None, dict_penalty="")
+    estimator = StabilityDictionaryLearning(k=None, dict_penalty=None)
     estimator.fit(X)
 
 
@@ -132,7 +131,7 @@ def stability_none_atoms_test():
 def stability_negative_atoms_test():
     X = np.random.rand(100,100)
 
-    estimator = StabilityDictionaryLearning(k=-1, dict_penalty="")
+    estimator = StabilityDictionaryLearning(k=-1, dict_penalty=None)
     estimator.fit(X)
 
 
