@@ -7,9 +7,6 @@ administrative or sudo permissions on GNU-Linux platforms)::
 
     $ pip install dalila
 
-    or
-
-    $ conda install dalila
 
 Installation from sources
 -------------------------
