@@ -326,7 +326,7 @@ class LInfPenalty(Penalty):
         if self._lambda < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
-        return self.apply_by_row(x, gamma)
+        return self.apply_by_col(x, gamma)
 
     def prox_operator(self, x, gamma):
         # norm = np.linalg.norm(x) + 1e-10  # added constant for stability
