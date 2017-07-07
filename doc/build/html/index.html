@@ -118,13 +118,12 @@ atoms in the dictionary must have norm equal to one.</p>
 <blockquote>
 <div><p>Number of atoms in which decompose the input matrix.</p>
 </div></blockquote>
-<p><strong>dict_penalty</strong> : a sub-class of Penalty in penalty.py file,</p>
+<p><strong>dict_penalty</strong> : a sub-class of Penalty in penalty.py file, optional</p>
 <blockquote>
-<div><p>optional
-It is applied on the dictionary and it can be L0Penalty,
+<div><p>It is applied on the dictionary and it can be L0Penalty,
 L1Penalty, L2Penalty, ElasticNetPenalty</p>
 </div></blockquote>
-<p><strong>coeff_penalty: sa sub-class of Penalty class in penalty.py file,</strong> :</p>
+<p><strong>coeff_penalty: a sub-class of Penalty class in penalty.py file,</strong> :</p>
 <blockquote>
 <div><p>optional
 It is applied on the coefficients and it can be L0Penalty,
@@ -443,7 +442,7 @@ stability we mean the average silhouette over all the clusters.</p>
 
 <span class="target" id="module-dalila.representation_learning"></span><dl class="class">
 <dt id="dalila.representation_learning.RepresentationLearning">
-<em class="property">class </em><code class="descclassname">dalila.representation_learning.</code><code class="descname">RepresentationLearning</code><span class="sig-paren">(</span><em>penalty=None</em>, <em>non_negativity=0</em>, <em>random_state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/representation_learning.html#RepresentationLearning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.representation_learning.RepresentationLearning" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">dalila.representation_learning.</code><code class="descname">RepresentationLearning</code><span class="sig-paren">(</span><em>D</em>, <em>penalty=None</em>, <em>non_negativity=0</em>, <em>random_state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/representation_learning.html#RepresentationLearning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.representation_learning.RepresentationLearning" title="Permalink to this definition">¶</a></dt>
 <dd><p>An estimator for finding coefficients given the dictionary.</p>
 <p>This estimator, given X and D, optimises a functional of the
 following form:</p>
@@ -458,7 +457,11 @@ atoms in the dictionary must have norm equal to one.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>penalty: a sub-class of Penalty class in penalty.py file, optional</strong> :</p>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>D: array_like or sparse matrix, shape= (n_atoms, n_features)</strong> :</p>
+<blockquote>
+<div><p>The dictionary.</p>
+</div></blockquote>
+<p><strong>penalty: a sub-class of Penalty class in penalty.py file, optional</strong> :</p>
 <blockquote>
 <div><p>It is applied on the coefficients and it can be
 - L0Penalty
@@ -484,7 +487,7 @@ time RandomState is randomly initialised.</p>
 </table>
 <dl class="method">
 <dt id="dalila.representation_learning.RepresentationLearning.fit">
-<code class="descname">fit</code><span class="sig-paren">(</span><em>x</em>, <em>d</em>, <em>backtracking=0</em>, <em>n_iter=20000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/representation_learning.html#RepresentationLearning.fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.representation_learning.RepresentationLearning.fit" title="Permalink to this definition">¶</a></dt>
+<code class="descname">fit</code><span class="sig-paren">(</span><em>x</em>, <em>backtracking=0</em>, <em>n_iter=20000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/representation_learning.html#RepresentationLearning.fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.representation_learning.RepresentationLearning.fit" title="Permalink to this definition">¶</a></dt>
 <dd><p>Function that fits the estimator on the matrices X and D.</p>
 <p>This function finds the coefficients with a proximal gradient
 algorithm. It computes the gradient on the reconstruction part of the
@@ -498,10 +501,6 @@ the positive space.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><p class="first"><strong>x</strong> : array-like or sparse matrix shape =  (n_samples, n_features)</p>
 <blockquote>
 <div><p>The matrix to decompose.</p>
-</div></blockquote>
-<p><strong>d: array_like or sparse matrix, shape= (n_atoms, n_features)</strong> :</p>
-<blockquote>
-<div><p>The dictionary.</p>
 </div></blockquote>
 <p><strong>backtracking: bool, optional</strong> :</p>
 <blockquote>
@@ -627,7 +626,7 @@ of the input data.</p>
 <span id="parameter-research-utils"></span><h4>Parameter research utils<a class="headerlink" href="#module-dalila.parameters_research" title="Permalink to this headline">¶</a></h4>
 <dl class="function">
 <dt id="dalila.parameters_research.tune_parameters_DL">
-<code class="descclassname">dalila.parameters_research.</code><code class="descname">tune_parameters_DL</code><span class="sig-paren">(</span><em>X</em>, <em>estimator=None</em>, <em>analysis=3</em>, <em>non_negative=’none’</em>, <em>distributed=0</em>, <em>scheduler_host=”</em>, <em>max_k=None</em>, <em>dict_penalty_range=(0.0001</em>, <em>1</em>, <em>10)</em>, <em>coeff_penalty_range=(0.0001</em>, <em>1</em>, <em>10)</em>, <em>random_state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/parameters_research.html#tune_parameters_DL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.parameters_research.tune_parameters_DL" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">dalila.parameters_research.</code><code class="descname">tune_parameters_DL</code><span class="sig-paren">(</span><em>X</em>, <em>estimator=None</em>, <em>analysis=3</em>, <em>non_negative=’none’</em>, <em>distributed=0</em>, <em>scheduler_host=”</em>, <em>range_k=None</em>, <em>dict_penalty_range=(0.0001</em>, <em>1</em>, <em>10)</em>, <em>coeff_penalty_range=(0.0001</em>, <em>1</em>, <em>10)</em>, <em>fit_params={}</em>, <em>scoring_function=None</em>, <em>random_state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/parameters_research.html#tune_parameters_DL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.parameters_research.tune_parameters_DL" title="Permalink to this definition">¶</a></dt>
 <dd><p>Parameters tuner.</p>
 <p>It tunes the parameters of a dictionary learning estimator using 3-splits
 monte carlo sampling cross validation.</p>
@@ -681,10 +680,11 @@ connected by dask. In this case also scheduler_host must be speficied.</p>
 network. The string must be “ip_address:port”, for example:
 “10.251.61.226:8786”</p>
 </div></blockquote>
-<p><strong>max_k = int, optional</strong> :</p>
+<p><strong>range_k: int or list, optional</strong> :</p>
 <blockquote>
-<div><p>The maximum number of atoms to try when you search for the right k.
-If None max_k will be computed as int(min(p, 0.75 * n) / 2)</p>
+<div><p>The maximum number of atoms to try when you search for the right k or
+the list of possible values to try.
+If None range_k will be computed as int(min(p, 0.75 * n) / 2)</p>
 </div></blockquote>
 <p><strong>dict_penalty_range: float tuple, optional (low, high, number)</strong> :</p>
 <blockquote>
@@ -695,6 +695,16 @@ number of values to try.</p>
 <blockquote>
 <div><p>It gives the interval in which tune the coefficient penalty and the
 number of values to try.</p>
+</div></blockquote>
+<p><strong>fit_params: dictionary, optional</strong> :</p>
+<blockquote>
+<div><p>The parameters to pass to the fitting procedure during GridSearch.</p>
+</div></blockquote>
+<p><strong>scoring_function: callable or None, default=None</strong> :</p>
+<blockquote>
+<div><p>A scorer callable object / function with signature
+scorer(estimator, X, y=None). If None, the score method of the
+estimator is used.</p>
 </div></blockquote>
 <p><strong>random_state</strong> : int, RandomState instance or None, optional (default=None)</p>
 <blockquote>
@@ -715,7 +725,7 @@ by <cite>np.random</cite>.</p>
 
 <dl class="function">
 <dt id="dalila.parameters_research.tune_parameters_RL">
-<code class="descclassname">dalila.parameters_research.</code><code class="descname">tune_parameters_RL</code><span class="sig-paren">(</span><em>X</em>, <em>D</em>, <em>estimator</em>, <em>non_negative=0</em>, <em>distributed=0</em>, <em>scheduler_host=”</em>, <em>coeff_penalty_range=(0.0001</em>, <em>1</em>, <em>10)</em>, <em>random_state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/parameters_research.html#tune_parameters_RL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.parameters_research.tune_parameters_RL" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">dalila.parameters_research.</code><code class="descname">tune_parameters_RL</code><span class="sig-paren">(</span><em>X</em>, <em>estimator</em>, <em>non_negative=0</em>, <em>distributed=0</em>, <em>scheduler_host=”</em>, <em>coeff_penalty_range=(0.0001</em>, <em>1</em>, <em>10)</em>, <em>fit_params={}</em>, <em>scoring_function=None</em>, <em>random_state=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/dalila/parameters_research.html#tune_parameters_RL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#dalila.parameters_research.tune_parameters_RL" title="Permalink to this definition">¶</a></dt>
 <dd><p>Parameters tuner.</p>
 <p>It tunes the parameters of a representations learning estimator using
 3-splits monte carlo sampling cross validation.</p>
@@ -754,6 +764,16 @@ network. The string must be “ip_address:port”, for example:
 <blockquote>
 <div><p>It gives the interval in which tune the coefficient penalty and the
 number of values to try.</p>
+</div></blockquote>
+<p><strong>fit_params: dictionary, optional</strong> :</p>
+<blockquote>
+<div><p>The parameters to pass to the fitting procedure during GridSearch.</p>
+</div></blockquote>
+<p><strong>scoring_function: callable or None, default=None</strong> :</p>
+<blockquote>
+<div><p>A scorer callable object / function with signature
+scorer(estimator, X, y=None). If None, the score method of the
+estimator is used.</p>
 </div></blockquote>
 <p><strong>random_state</strong> : int, RandomState instance or None, optional (default=None)</p>
 <blockquote>

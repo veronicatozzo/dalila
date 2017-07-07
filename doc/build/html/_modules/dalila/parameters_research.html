@@ -80,9 +80,12 @@
 
 
 <div class="viewcode-block" id="tune_parameters_DL"><a class="viewcode-back" href="../../index.html#dalila.parameters_research.tune_parameters_DL">[docs]</a><span class="k">def</span> <span class="nf">tune_parameters_DL</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">estimator</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">analysis</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">non_negative</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
-                    <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">max_k</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                    <span class="n">dict_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
-                    <span class="n">coeff_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                       <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">range_k</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">dict_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+                       <span class="n">coeff_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+                       <span class="n">fit_params</span> <span class="o">=</span> <span class="p">{},</span>
+                       <span class="n">scoring_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters tuner.</span>
 
@@ -124,9 +127,10 @@
 <span class="sd">        network. The string must be &quot;ip_address:port&quot;, for example:</span>
 <span class="sd">        &quot;10.251.61.226:8786&quot;</span>
 
-<span class="sd">    max_k = int, optional</span>
-<span class="sd">        The maximum number of atoms to try when you search for the right k.</span>
-<span class="sd">        If None max_k will be computed as int(min(p, 0.75 * n) / 2)</span>
+<span class="sd">    range_k: int or list, optional</span>
+<span class="sd">        The maximum number of atoms to try when you search for the right k or</span>
+<span class="sd">        the list of possible values to try.</span>
+<span class="sd">        If None range_k will be computed as int(min(p, 0.75 * n) / 2)</span>
 
 <span class="sd">    dict_penalty_range: float tuple, optional (low, high, number)</span>
 <span class="sd">        It gives the interval in which tune the dictionary penalty and the</span>
@@ -135,6 +139,14 @@
 <span class="sd">    coeff_penalty_range: float tuple, optional (low, high, number)</span>
 <span class="sd">        It gives the interval in which tune the coefficient penalty and the</span>
 <span class="sd">        number of values to try.</span>
+
+<span class="sd">    fit_params: dictionary, optional</span>
+<span class="sd">        The parameters to pass to the fitting procedure during GridSearch.</span>
+
+<span class="sd">    scoring_function: callable or None, default=None</span>
+<span class="sd">        A scorer callable object / function with signature</span>
+<span class="sd">        scorer(estimator, X, y=None). If None, the score method of the</span>
+<span class="sd">        estimator is used.</span>
 
 <span class="sd">    random_state : int, RandomState instance or None, optional (default=None)</span>
 <span class="sd">        If int, random_state is the seed used by the random number generator;</span>
@@ -164,8 +176,8 @@
             <span class="n">estimator</span><span class="o">.</span><span class="n">non_negativity</span> <span class="o">=</span> <span class="n">non_negative</span>
 
     <span class="n">n</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span>
-    <span class="k">if</span> <span class="n">max_k</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">max_k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="mf">0.75</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># generally the optimal</span>
+    <span class="k">if</span> <span class="n">range_k</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">range_k</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="mf">0.75</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># generally the optimal</span>
                                            <span class="c1"># number of k is low</span>
 
     <span class="k">if</span> <span class="p">(</span><span class="n">analysis</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="ow">and</span>
@@ -180,35 +192,71 @@
             <span class="n">distributed</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="n">distributed</span> <span class="o">=</span> <span class="n">_check_scheduler</span><span class="p">(</span><span class="n">scheduler_host</span><span class="p">)</span>
 
+    <span class="c1"># find first the paramaters on the dictionary and after the coefficients</span>
     <span class="k">if</span> <span class="n">analysis</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_find_everything_sequentially</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span>
-                                             <span class="n">dict_penalty_range</span><span class="p">,</span>
-                                             <span class="n">coeff_penalty_range</span><span class="p">,</span>
-                                             <span class="n">distributed</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="p">,</span>
-                                             <span class="n">random_state</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params_dict</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span>
+                                  <span class="n">dict_penalty_range</span><span class="o">=</span><span class="n">dict_penalty_range</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">range_k</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">range_k</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">range_k</span>
+
+        <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
+        <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="n">jobs</span><span class="p">,</span>
+                            <span class="n">scoring</span><span class="o">=</span><span class="n">scoring_function</span><span class="p">,</span>
+                            <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
+                <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+        <span class="n">estimator</span> <span class="o">=</span> <span class="n">gscv</span><span class="o">.</span><span class="n">best_estimator_</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params_coeff</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="p">)</span>
+    <span class="c1"># find only the penalties together</span>
     <span class="k">elif</span> <span class="n">analysis</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_find_penalties</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">,</span>
-                               <span class="n">coeff_penalty_range</span><span class="p">,</span>
-                               <span class="n">distributed</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="p">,</span>
-                               <span class="n">random_state</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">,</span>
+                             <span class="n">coeff_penalty_range</span><span class="p">)</span>
+    <span class="c1"># find only the number of atoms</span>
     <span class="k">elif</span> <span class="n">analysis</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_find_number_of_atoms</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span> <span class="n">non_negative</span><span class="p">,</span>
-                                     <span class="n">distributed</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="p">,</span>
-                                     <span class="n">random_state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">range_k</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_k</span><span class="p">))}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">range_k</span><span class="p">}</span>
+    <span class="c1"># find everything together</span>
     <span class="k">elif</span> <span class="n">analysis</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_find_everything</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">,</span>
-                                <span class="n">coeff_penalty_range</span><span class="p">,</span>
-                                <span class="n">distributed</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="p">,</span>
-                                <span class="n">random_state</span><span class="p">)</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">,</span>
+                             <span class="n">coeff_penalty_range</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">range_k</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">range_k</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">range_k</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unknown type of research, please try with another &quot;</span>
                       <span class="s2">&quot;setting&quot;</span><span class="p">)</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unkown type of research, please try with another&quot;</span>
-                         <span class="s2">&quot;setting&quot;</span><span class="p">)</span></div>
+                         <span class="s2">&quot;setting&quot;</span><span class="p">)</span>
+
+    <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                             <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
+    <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
+    <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span> <span class="n">fit_params</span><span class="o">=</span><span class="n">fit_params</span><span class="p">,</span>
+                        <span class="n">n_jobs</span><span class="o">=</span><span class="n">jobs</span><span class="p">,</span> <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">scoring</span><span class="o">=</span><span class="n">scoring_function</span><span class="p">,</span>
+                        <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span>
+                              <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
+            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">gscv</span></div>
 
 
-<div class="viewcode-block" id="tune_parameters_RL"><a class="viewcode-back" href="../../index.html#dalila.parameters_research.tune_parameters_RL">[docs]</a><span class="k">def</span> <span class="nf">tune_parameters_RL</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">non_negative</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>  <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<div class="viewcode-block" id="tune_parameters_RL"><a class="viewcode-back" href="../../index.html#dalila.parameters_research.tune_parameters_RL">[docs]</a><span class="k">def</span> <span class="nf">tune_parameters_RL</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">non_negative</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>  <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                        <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+                       <span class="n">fit_params</span><span class="o">=</span><span class="p">{},</span> <span class="n">scoring_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters tuner.</span>
@@ -245,6 +293,14 @@
 <span class="sd">        It gives the interval in which tune the coefficient penalty and the</span>
 <span class="sd">        number of values to try.</span>
 
+<span class="sd">    fit_params: dictionary, optional</span>
+<span class="sd">        The parameters to pass to the fitting procedure during GridSearch.</span>
+
+<span class="sd">    scoring_function: callable or None, default=None</span>
+<span class="sd">        A scorer callable object / function with signature</span>
+<span class="sd">        scorer(estimator, X, y=None). If None, the score method of the</span>
+<span class="sd">        estimator is used.</span>
+
 <span class="sd">    random_state : int, RandomState instance or None, optional (default=None)</span>
 <span class="sd">        If int, random_state is the seed used by the random number generator;</span>
 <span class="sd">        If RandomState instance, random_state is the random number generator;</span>
@@ -260,14 +316,12 @@
 
     <span class="c1"># ------------------parameters control ---------------------------------- #</span>
     <span class="n">X</span> <span class="o">=</span> <span class="n">check_array</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
-    <span class="n">D</span> <span class="o">=</span> <span class="n">check_array</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
     <span class="n">random_state</span> <span class="o">=</span> <span class="n">check_random_state</span><span class="p">(</span><span class="n">random_state</span><span class="p">)</span>
     <span class="n">_check_range</span><span class="p">(</span><span class="n">coeff_penalty_range</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">estimator</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;passed estimator was None&quot;</span><span class="p">)</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;passed estimator was None&quot;</span><span class="p">)</span>
     <span class="n">_check_estimator</span><span class="p">(</span><span class="n">estimator</span><span class="p">)</span>
-
 
     <span class="n">estimator</span><span class="o">.</span><span class="n">non_negativity</span> <span class="o">=</span> <span class="n">non_negative</span>
 
@@ -278,7 +332,7 @@
             <span class="n">distributed</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="n">distributed</span> <span class="o">=</span> <span class="n">_check_scheduler</span><span class="p">(</span><span class="n">scheduler_host</span><span class="p">)</span>
 
-        <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
                                  <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
 
     <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params_coeff</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="p">,</span>
@@ -286,134 +340,17 @@
 
     <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
     <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="p">(</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">5</span><span class="p">),</span>
-                        <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                        <span class="n">fit_params</span><span class="o">=</span><span class="n">fit_params</span><span class="p">,</span> <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">scoring</span><span class="o">=</span><span class="n">scoring_function</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
         <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span>
                               <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
-            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">gscv</span></div>
-
-
-<span class="k">def</span> <span class="nf">_find_everything_sequentially</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span>
-                                  <span class="n">dict_penalty_range</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="p">,</span>
-                                  <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
-                                  <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-
-    <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
-                             <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
-
-    <span class="c1"># ---------------------first part</span>
-    <span class="n">params</span><span class="o">=</span> <span class="n">_get_params_dict</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span>
-                             <span class="n">dict_penalty_range</span><span class="o">=</span><span class="n">dict_penalty_range</span><span class="p">)</span>
-    <span class="n">params</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_k</span><span class="p">))</span>
-
-    <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
-    <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="n">jobs</span><span class="p">,</span>
-                        <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
-            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="n">best_est_dict</span> <span class="o">=</span> <span class="n">gscv</span><span class="o">.</span><span class="n">best_estimator_</span>
-
-    <span class="c1"># ---------------------second part</span>
-    <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params_coeff</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="p">)</span>
-    <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">best_est_dict</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span>
-                        <span class="n">n_jobs</span><span class="o">=</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">2</span><span class="p">,</span> <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                        <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">distributed</span><span class="o">==</span><span class="mi">2</span><span class="p">:</span>
-        <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
-
-        <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span>
-                              <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
-            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">gscv</span>
-
-
-<span class="k">def</span> <span class="nf">_find_number_of_atoms</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span> <span class="n">non_negative</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                          <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-    <span class="n">estimator</span> <span class="o">=</span> <span class="n">DictionaryLearning</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                                   <span class="n">non_negativity</span><span class="o">=</span><span class="n">non_negative</span><span class="p">,</span>
-                                   <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-    <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_k</span><span class="p">))}</span>
-    <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
-                             <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
-
-    <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
-    <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span>
-                      <span class="n">n_jobs</span><span class="o">=</span><span class="n">cpu_count</span><span class="p">()</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                      <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                      <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span>
-                              <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
-            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">gscv</span>
-
-
-<span class="k">def</span> <span class="nf">_find_penalties</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span>
-                    <span class="n">dict_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
-                    <span class="n">coeff_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
-                    <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-
-    <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
-                             <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
-    <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="p">)</span>
-
-    <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
-    <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="p">(</span><span class="n">cpu_count</span><span class="p">()</span><span class="o">-</span><span class="mi">5</span><span class="p">),</span>
-                        <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span>
-                              <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
-            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">gscv</span>
-
-
-<span class="k">def</span> <span class="nf">_find_everything</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">estimator</span><span class="p">,</span> <span class="n">max_k</span><span class="p">,</span>
-                     <span class="n">dict_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
-                     <span class="n">coeff_penalty_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.001</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
-                     <span class="n">distributed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scheduler_host</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
-                     <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-
-    <span class="n">params</span> <span class="o">=</span> <span class="n">_get_params</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">,</span>
-                              <span class="n">coeff_penalty_range</span><span class="p">)</span>
-
-    <span class="n">ss</span> <span class="o">=</span> <span class="n">MonteCarloBootstrap</span><span class="p">(</span><span class="n">n_splits</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
-                             <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
-    <span class="n">params</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_k</span><span class="p">))</span>
-
-    <span class="n">jobs</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">cpu_count</span><span class="p">()</span>
-    <span class="n">gscv</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="n">ss</span><span class="p">,</span>
-                        <span class="n">n_jobs</span><span class="o">=</span><span class="n">cpu_count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">2</span><span class="p">,</span> <span class="n">iid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">refit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                        <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">distributed</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-        <span class="n">register_parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span> <span class="n">DistributedBackend</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">parallel_backend</span><span class="p">(</span><span class="s1">&#39;distributed&#39;</span><span class="p">,</span>
-                              <span class="n">scheduler_host</span><span class="o">=</span><span class="n">scheduler_host</span><span class="p">):</span>
-            <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">gscv</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">gscv</span>
 
 
 <span class="k">def</span> <span class="nf">_get_params_dict</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">dict_penalty_range</span><span class="p">):</span>
@@ -428,11 +365,15 @@
 
 <span class="k">def</span> <span class="nf">_get_params_coeff</span><span class="p">(</span><span class="n">estimator</span><span class="p">,</span> <span class="n">coeff_penalty_range</span><span class="p">,</span>
                       <span class="n">representation_learning</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">estimator</span><span class="o">.</span><span class="n">coeff_penalty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">representation_learning</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">estimator</span><span class="o">.</span><span class="n">penalty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">estimator</span><span class="o">.</span><span class="n">coeff_penalty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{}</span>
 
     <span class="k">if</span> <span class="n">representation_learning</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;penalty&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">estimator</span><span class="o">.</span><span class="n">coeff_penalty</span><span class="o">.</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;penalty&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">estimator</span><span class="o">.</span><span class="n">penalty</span><span class="o">.</span>
                              <span class="n">make_grid</span><span class="p">(</span><span class="n">coeff_penalty_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
                                        <span class="n">coeff_penalty_range</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
                                        <span class="n">coeff_penalty_range</span><span class="p">[</span><span class="mi">2</span><span class="p">]))}</span>

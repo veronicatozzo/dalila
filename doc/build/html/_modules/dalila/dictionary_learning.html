@@ -99,12 +99,11 @@
 <span class="sd">        k: int</span>
 <span class="sd">            Number of atoms in which decompose the input matrix.</span>
 
-<span class="sd">        dict_penalty : a sub-class of Penalty in penalty.py file,</span>
-<span class="sd">            optional</span>
+<span class="sd">        dict_penalty : a sub-class of Penalty in penalty.py file, optional</span>
 <span class="sd">            It is applied on the dictionary and it can be L0Penalty,</span>
 <span class="sd">            L1Penalty, L2Penalty, ElasticNetPenalty</span>
 
-<span class="sd">        coeff_penalty: sa sub-class of Penalty class in penalty.py file,</span>
+<span class="sd">        coeff_penalty: a sub-class of Penalty class in penalty.py file,</span>
 <span class="sd">            optional</span>
 <span class="sd">            It is applied on the coefficients and it can be L0Penalty,</span>
 <span class="sd">            L1Penalty, L2Penalty, ElasticNetPenalty</span>
@@ -119,7 +118,6 @@
 <span class="sd">            If &#39;both&#39; non-negativity is applied on both matrices.</span>
 <span class="sd">            if &#39;coeff&#39; non-negativity is applied only on the matrix of the</span>
 <span class="sd">            coefficients.</span>
-
 
 <span class="sd">        random_state: RandomState or int</span>
 <span class="sd">            Seed to be use to initialise np.random.RandomState. If None each</span>
@@ -295,10 +293,11 @@
 <span class="sd">            -log(k)*log(n_samples) - 2.3*(self.objective_function_value())</span>
 <span class="sd">            the highest is the score and better the decomposition is.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;-inf&quot;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="o">-</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)</span> \
-                    <span class="o">+</span> <span class="mf">2.3</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">objective_function_value</span><span class="p">()))</span></div>
+        <span class="k">return</span> <span class="o">-</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">k</span> \
+                    <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">X</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">C</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">D</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="nf">_alternating_proximal_gradient_minimization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">random_state</span><span class="p">,</span>
                                                     <span class="n">n_iter</span><span class="o">=</span><span class="mi">20000</span><span class="p">,</span>
