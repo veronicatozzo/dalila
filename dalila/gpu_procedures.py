@@ -56,3 +56,26 @@ __global__ void ENKernel(float *a, float lambda1, float lambda2, float *c,
 }
 """)
 ENprox = mod.get_function("ENKernel")
+
+
+mod = compiler.SourceModule("""
+__global__ void L0Kernel(float *a, float* aux, int non_zero, float *c, int rows, int cols)
+{
+   int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+   if(row < rows){
+	for(int s = 0; s < non_zero; s++){
+           float max = -100000000.;
+	   int i_max = -1;
+	   for (int i = 0; i < cols-1; i++ ){
+	      if(aux[i+cols*row] > max){
+		 max = aux[i+cols*row];
+                 i_max = i;
+	      }
+	   }
+           c[i_max+cols*row] = a[i_max+cols*row];
+	}
+   }
+}
+""")
+L0prox = mod.get_function("L0Kernel")

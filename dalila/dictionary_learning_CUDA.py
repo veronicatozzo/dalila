@@ -76,17 +76,12 @@ class DictionaryLearningGPU(BaseEstimator):
 
         return self
 
-
     def objective_function_value(self, x=None, d=None, c=None):
 
         reconstruction = np.linalg.norm(x - c.dot(d))**2
         penalty_dictionary = self.dict_penalty.value(d)
         penalty_coefficient = self.coeff_penalty.value(c)
         return reconstruction + penalty_coefficient + penalty_dictionary
-
-
-
-
 
     def _alternating_proximal_gradient_minimization(self, random_state,
                                                     n_iter=20000,
@@ -101,10 +96,12 @@ class DictionaryLearningGPU(BaseEstimator):
                             .astype(np.float32))
         c = _non_negative_projection_GPU(c, self.non_negativity, 'coeff')
 
-        norm_d = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(d), d))
+        norm_d = np.float32(1.1) *\
+                 linalg.norm(linalg.dot(linalg.transpose(d), d))
         step_c = np.float32(1) / norm_d
 
-        norm_c = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(c), c))
+        norm_c = np.float32(1.1) * \
+                 linalg.norm(linalg.dot(linalg.transpose(c), c))
         step_d = np.float32(1) / norm_c
 
         epsilon = np.float32(1e-4)
@@ -120,7 +117,8 @@ class DictionaryLearningGPU(BaseEstimator):
                 apply_prox_operator(misc.subtract(d, step_d*gradient_d), step_d)
             d = _non_negative_projection_GPU(d, self.non_negativity, 'dict')
             c = self.coeff_penalty. \
-                apply_prox_operator(misc.subtract(c, step_c *  gradient_c), step_c)
+                apply_prox_operator(misc.subtract(c, step_c *  gradient_c),
+                                    step_c)
             c = _non_negative_projection_GPU(c, self.non_negativity, 'coeff')
 
             new_objective = linalg.norm(linalg.dot(c,d)-x)
@@ -132,12 +130,13 @@ class DictionaryLearningGPU(BaseEstimator):
             d_old = d.copy()
             c_old = c.copy()
 
-            norm_d = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(d), d))
-            step_c = np.float32(1) / norm_d
+            norm_d = np.float32(1.1) * \
+                     linalg.norm(linalg.dot(linalg.transpose(d), d))
+            step_c = np.float32(1) / np.float32(norm_d + 1e-15)
 
-            norm_c = np.float32(1.1) * linalg.norm(linalg.dot(linalg.transpose(c), c))
-            step_d = np.float32(1) / norm_c
-
+            norm_c = np.float32(1.1) * \
+                     linalg.norm(linalg.dot(linalg.transpose(c), c))
+            step_d = np.float32(1) / np.float32(norm_c + 1e-15)
 
             if (abs(difference_objective) <= epsilon and
                     difference_d <= epsilon and
@@ -145,7 +144,6 @@ class DictionaryLearningGPU(BaseEstimator):
                 break
 
         return d.get(), c.get()
-
 
 
 def _check_penalty(penalty):

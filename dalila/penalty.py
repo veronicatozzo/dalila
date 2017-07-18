@@ -6,16 +6,12 @@ import numpy as np
 from itertools import product, combinations, chain
 import bintrees
 import pycuda.gpuarray as gpuarray
-import pycuda.cumath as cumath
 import pycuda.autoinit
-import skcuda.linalg as linalg
 import skcuda.misc as misc
-linalg.init()
 
-import pycuda.gpuarray as gpuarray
-import pycuda.autoinit
+from dalila.gpu_procedures import L1prox, L2prox, ENprox, L0prox
 
-from dalila.gpu_procedures import L1prox, L2prox, ENprox
+BLOCK_MAX = 1024
 
 
 class Penalty:
@@ -42,7 +38,7 @@ class Penalty:
             return new_x
 
     def apply_prox_operator(self, x, gamma):
-        return x
+       return x
 
     def _prox_operator(self, x, gamma):
         return x
@@ -88,19 +84,16 @@ class L1Penalty(Penalty):
         if type(x) == gpuarray.GPUArray:
             return self._prox_gpu(x, gamma)
         return self.apply_by_row(x, gamma)
-    def _prox_GPU(self, x, gamma):
-        #print("sono in prog GPU l1")
-        ones = gpuarray.to_gpu(np.ones(x.shape).astype(np.float32))
-        sign = gpuarray.if_positive(x, ones, -1*ones)
-        zeros = gpuarray.zeros_like(x)
-        x = gpuarray.maximum(zeros, cumath.fabs(x)-self._lambda*gamma)
-        return linalg.multiply(sign, x, overwrite=True)
 
     def _prox_gpu(self, x, gamma):
+        block_dim = min(BLOCK_MAX//2, x.shape[1])
+        grid_x = x.shape[0]//block_dim
+        grid_y = x.shape[0]//block_dim
         out = gpuarray.empty(x.shape, np.float32)
         L1prox(x, np.float32(self._lambda*gamma), out, np.uint32(x.shape[0]),
                np.uint32(x.shape[1]),
-               block=(x.shape[0], x.shape[1], 1), )
+               block=(block_dim, block_dim, 1),
+               grid=(grid_x, grid_y, 1),)
         return out
 
     def _prox_operator(self, x, gamma):
@@ -150,22 +143,16 @@ class L2Penalty(Penalty):
         return self.apply_by_row(x, gamma)
 
     def _prox_gpu(self, x, gamma):
+        block_dim = min(BLOCK_MAX // 2, x.shape[1])
+        grid_x = x.shape[0] // block_dim
+        grid_y = x.shape[0] // block_dim
         out = gpuarray.empty(x.shape, np.float32)
         L2prox(x, np.float32(self._lambda * gamma), out,
                np.uint32(x.shape[0]),
                np.uint32(x.shape[1]),
-               block=(x.shape[0], x.shape[1], 1), )
+               block=(block_dim, block_dim, 1),
+               grid=(grid_x, grid_y, 1), )
         return out
-
-    def _prox_operator(self, x, gamma):
-    def _prox_GPU(self, x, gamma):
-         print("sono nel prox GPU di l2")
-         for r in range(x.shape[0]):
-             norm = linalg.norm(x[r,:]) + 1e-10
-             constant = max(1 - (gamma*self._lambda) / norm, 0)
-             x[r,:] = x[r,:]*np.float32(constant)
-         return x
-
 
     def _prox_operator(self, x, gamma):
         norm = np.linalg.norm(x) + 1e-10  # added constant for stability
@@ -228,23 +215,16 @@ class ElasticNetPenalty(Penalty):
         return self.apply_by_row(x, gamma)
 
     def _prox_gpu(self, x, gamma):
+        block_dim = min(BLOCK_MAX // 2, x.shape[1])
+        grid_x = x.shape[0] // block_dim
+        grid_y = x.shape[0] // block_dim
         out = gpuarray.empty(x.shape, np.float32)
         ENprox(x, np.float32(self._lambda1 * gamma),
                np.float32(self.alpha * self._lambda2 * gamma),
                out, np.uint32(x.shape[0]), np.uint32(x.shape[1]),
-               block=(x.shape[0], x.shape[1], 1), )
+               block=(block_dim, block_dim, 1),
+               grid=(grid_x, grid_y, 1), )
         return out
-
-    def _prox_operator(self, x, gamma):
-    def _prox_GPU(self, x, gamma):
-        print("sono in prog GPU elasticnet")
-        ones = gpuarray.to_gpu(np.ones(x.shape).astype(np.float32))
-        sign = gpuarray.if_positive(x, ones, -1*ones)
-        zeros = gpuarray.zeros_like(x)
-        x = gpuarray.maximum(zeros, cumath.fabs(x)-self._lambda1*gamma)
-        linalg.multiply(sign, x, overwrite=True)
-        return x / np.float32(1. + self.alpha * self._lambda2 * gamma)
-
 
     def _prox_operator(self, x, gamma):
         sign = np.sign(x)
@@ -309,18 +289,18 @@ class L0Penalty(Penalty):
         else:
             return self.apply_by_row(x, gamma)
 
-    def _prox_GPU(self, x, gamma):
-        rows, cols = x.shape
-        for r in range(rows):
-            copy = gpuarray.zeros((2,cols), np.float32)
-            copy[0,:] = x[r,:].copy()
-            result = gpuarray.zeros_like(x[r,:])
-            for i in range(self.s+1):
-                index = misc.argmax(copy, axis=1).get()[0]
-                result[index] = copy[0, index]
-                copy[0,index].set(np.array([-float("inf")]).astype(np.float32))
-            x[r,:] = result
-        return x
+    #def _prox_GPU(self, x, gamma):
+        # rows, cols = x.shape
+        # for r in range(rows):
+        #     copy = gpuarray.zeros((2,cols), np.float32)
+        #     copy[0,:] = x[r,:].copy()
+        #     result = gpuarray.zeros_like(x[r,:])
+        #     for i in range(self.s+1):
+        #         index = misc.argmax(copy, axis=1).get()[0]
+        #         result[index] = copy[0, index]
+        #         copy[0,index].set(np.array([-float("inf")]).astype(np.float32))
+        #     x[r,:] = result
+        # return x
 
     def _prox_operator(self, x, gamma):
         indices = np.argsort(x)
@@ -387,16 +367,25 @@ class GroupLassoPenalty(Penalty):
         for r in range(0, x.shape[0]):
             for g in self._groups:
                 if type(x) == gpuarray.GPUArray:
-                    new_x[r,g] = self._prox_GPU(x[r, g], gamma)
+                    out = self._prox_GPU(misc.get_by_index(x,
+                                         np.array(g+(r*x.shape[1]))),
+                                         gamma)
+                    misc.set_by_index(new_x, np.array(g+(r*x.shape[1])), out)
                 else:
                     new_x[r,g] = self.apply_by_row(x[r, g], gamma)
         return new_x
 
-
     def _prox_GPU(self, x, gamma):
-        norm = linalg.norm(x)
-        constant = max(1 - (gamma*self._lambda) / norm, 0)
-        return x*constant
+        block_dim = min(BLOCK_MAX // 2, x.shape[0])
+        grid_x = 1
+        grid_y = x.shape[0] // block_dim
+        out = gpuarray.empty(x.shape, np.float32)
+        L2prox(x, np.float32(self._lambda * gamma), out,
+               np.uint32(1),
+               np.uint32(x.shape[0]),
+               block=(1, block_dim, 1),
+               grid=(grid_x, grid_y, 1), )
+        return out
 
     def _prox_operator(self, x, gamma):
         if np.linalg.norm(x) < self._lambda*gamma:
