@@ -6,6 +6,29 @@ from scipy import signal
 from sklearn.utils import check_random_state
 
 
+def total_variation_dataset_generator(n_samples=100, n_features=1000,
+                                      n_atoms=30, gaussian_noise=0.5,
+                                      random_state=None):
+    rnd = check_random_state(random_state)
+    indexes = np.array_split(np.arange(n_features), n_atoms)
+
+    # Testing Data
+    D = np.empty((n_atoms, n_features))
+    for j, idxs in enumerate(indexes):
+        profile = np.zeros(n_features)
+        profile[idxs] = 1. * (-1 if j%2 else 1)
+
+        D[j, :] = profile
+
+    C = np.zeros((n_samples, n_atoms))
+    for j, idxs in enumerate(np.array_split(np.arange(n_samples), n_atoms)):
+        C[idxs, j] = 10.
+
+    X = np.dot(C, D) + rnd.normal(0, gaussian_noise, (n_samples, n_features))
+
+    return X, C, D
+
+
 def group_lasso_dataset_generator(n_samples=100, n_features=100,
                                   gaussian_noise=0.5, random_state=None):
     """

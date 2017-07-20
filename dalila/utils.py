@@ -169,6 +169,85 @@ def compute_correlation(x, set_to_compare, not_to_consider):
     return correlations
 
 
+def discrite_derivate(x):
+    """
+    Computes the discrite derivative of the vector x.
+    Parameters
+    ----------
+    x: array-like
+
+    Returns
+    -------
+    array-like
+    The discrite derivative of x
+    """
+    x = np.asarray(x)
+    return x[1:] - x[:-1]
+
+
+def discrite_derivate_conjugate(x):
+    """
+       Computes the conjugate of the discrite derivative of the vector x.
+       Parameters
+       ----------
+       x: array-like
+
+       Returns
+       -------
+       array-like
+       The conjugate discrite derivative of x
+       """
+    x = np.asarray(x)
+    return np.r_[-x[0], x[:-1] - x[1:], x[-1]]
+
+
+def interval_projection(x, w):
+    """
+    Project x_i into the interval [-w_i, w_i] for each i.
+
+    Parameters
+    ----------
+    x: array-like
+    The vector to project.
+
+    w: array-like
+    The vector of weights.
+
+    Returns
+    -------
+    array-like
+    The conjugate discrite derivative of x
+    """
+    x = np.asarray(x, dtype=float)
+    w = np.asarray(w, dtype=float)
+    assert np.all(w >= 0)
+
+    return np.clip(x, -w, w)
+
+def interval_projection(x, w):
+    """
+    Project x_i into the interval [-w_i, w_i] for each i.
+
+    Parameters
+    ----------
+    x: array-like
+    The vector to project.
+
+    w: array-like
+    The vector of weights.
+
+    Returns
+    -------
+    array-like
+    The conjugate discrite derivative of x
+    """
+    x = np.asarray(x, dtype=float)
+    w = np.asarray(w, dtype=float)
+    assert np.all(w >= 0)
+
+    return np.clip(x, -w, w)
+
+
 class MonteCarloBootstrap(BaseShuffleSplit):
     """
     Montecarlo sampling
@@ -223,3 +302,5 @@ class MonteCarloBootstrap(BaseShuffleSplit):
             ind_test = list(set(np.arange(0, X.shape[0])) -
                             set(np.unique(ind_train)))
             yield ind_train, ind_test
+
+

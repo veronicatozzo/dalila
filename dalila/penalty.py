@@ -1,11 +1,12 @@
 from __future__ import print_function, division
 
 import logging
-
 import numpy as np
 from itertools import product, combinations, chain
 import bintrees
 
+from dalila.utils import discrite_derivate, discrite_derivate_conjugate, \
+                         interval_projection
 
 class Penalty:
     """
@@ -30,7 +31,7 @@ class Penalty:
                 new_x[:, c] = self.prox_operator(x[:, c], gamma)
             return new_x
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         return x
 
     def prox_operator(self, x, gamma):
@@ -61,7 +62,7 @@ class L1Penalty(Penalty):
     def __init__(self, _lambda):
        self._lambda = _lambda
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         if self._lambda < 0:
             logging.error("A negative regularization parameter was used")
             raise ValueError("A negative regularization parameter was used")
@@ -105,7 +106,7 @@ class L2Penalty(Penalty):
     def __init__(self, _lambda):
          self._lambda = _lambda
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         if self._lambda < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
@@ -158,7 +159,7 @@ class ElasticNetPenalty(Penalty):
         self._lambda2 = _lambda2
         self.alpha = alpha
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         if self._lambda1 < 0 or self._lambda2 < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
@@ -217,7 +218,7 @@ class L0Penalty(Penalty):
     def __init__(self, s):
         self.s = s
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         if self.s < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
@@ -271,7 +272,7 @@ class GroupLassoPenalty(Penalty):
         self._groups = _groups
         self._lambda = _lambda
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         if self._lambda < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
@@ -322,7 +323,7 @@ class LInfPenalty(Penalty):
     def __init__(self, _lambda):
         self._lambda = _lambda
 
-    def apply_prox_operator(self, x, gamma):
+    def apply_prox_operator(self, x, gamma, precision=None):
         if self._lambda < 0:
             logging.error("A negative regularisation parameter was used")
             raise ValueError("A negative regularization parameter was used")
@@ -412,4 +413,137 @@ class LInfPenalty(Penalty):
     def _is_leaf(self, v):
         return v.left is None and v.right is None
 
+
+class TVL1Penalty(Penalty):
+    """
+        Class representing Total Variation (fused lasso) + l1 penalty.
+
+        Parameters
+        ----------
+
+        _lambda1: float
+        The regularization value for the l1 penalty.
+        Allawed values are higher than 0. If 0 it
+
+        _lambdaTV: float
+        The regularization value for the Total Variation penalty.
+        Allawed values are higher than 0.
+
+        weights: array-like of dimension d-1, optional
+        They are the weights to be used during the derivative on a matrix X
+        of shape = (n, d). They have to be grater than 0.
+        If not given they will be set to 1.
+
+    """
+
+    def __init__(self, _lambda1, _lambdaTV, weights):
+        self._lambda1 = _lambda1
+        self._lambdaTV = _lambdaTV
+        self.weights = weights
+
+    def apply_prox_operator(self, x, gamma, precision=None):
+        if self._lambda1 < 0 or self._lambdaTV < 0:
+            logging.error("A negative regularization parameter was used")
+            raise ValueError("A negative regularization parameter was used")
+        if self.weights is None:
+            self.weights = np.ones(x.shape[1]-1)
+        elif len(self.weights) != x.shape[1]-1:
+            logging.error("The weights have to be as many as the dimension of"
+                          "the matrix on which applying the prox")
+            raise ValueError("The weights have to be as many as the dimension "
+                             "of the matrix on which applying the prox")
+        elif not np.all(self.weights> 0):
+            logging.error("The weights have to be greater than 0")
+            raise ValueError("The weights have to be greater than 0")
+        else:
+            self.weights = self.weights.reshape(len(self.weights))
+
+        if precision is None:
+            logging.error("TV prox approximation requires a precision")
+            raise ValueError("TV prox approximation requires a precision")
+
+        return self.prox_operator(x, gamma, precision)
+
+    def prox_operator(self, x, gamma, precision):
+        n, p = x.shape
+
+        # initializations
+        V1, V2, U1, U2 = (np.zeros((n, p-1), order='F'),
+                          np.zeros((n, p), order='F'),
+                          np.zeros((n, p-1), order='F'),
+                          np.zeros((n, p), order='F'))
+        V1_prev, V2_prev = (np.zeros((n, p-1), order='F'),
+                            np.zeros((n, p), order='F'))
+        t = 1.
+        step = 1.0 / \
+               (4 * (np.sum(np.apply_along_axis(np.linalg.norm, 1, x))) +
+                np.linalg.norm(x))
+
+        # GAPS values
+        gaps = list()
+        primals = list()
+
+        for i in range(int(1e5)):
+            t_prev = t
+            V1_prev, V2_prev = V1, V2
+
+            # gradient step
+            d_U1 = np.apply_along_axis(discrite_derivate_conjugate, 1, U1)
+            gradient = x - gamma * (d_U1 + U2)
+
+            V1 = U1 + step*np.apply_along_axis(discrite_derivate, 1, gradient)
+            V2 = U2 + step*gradient
+
+            # proximal mapping
+            V1 = np.apply_along_axis(interval_projection, 1,
+                                     V1, self._lambdaTV*self.weights)
+            V2 = np.clip(V2, -self._lambda1, self._lambda1)
+
+            if i % 10 == 0:
+                primal = x - gamma * (np.apply_along_axis(
+                                      discrite_derivate_conjugate, 1, V1)
+                                      + V2)
+                gap = 1/(2*gamma) * np.linalg.norm(x - primal)**2
+                gap += self._lambdaTV*self._total_variation(primal)
+                gap += self._lambda1*np.linalg.norm(primal, 1)
+                gap -= 1/(2*gamma) * np.linalg.norm(primal)**2
+                gap += 1/(2*gamma) * \
+                       np.linalg.norm(primal - gamma * (np.apply_along_axis(
+                                          discrite_derivate_conjugate, 1, V1)
+                                          + V2))**2
+                gaps.append(gap)
+                primals.append(primal)
+
+            t = (1. + np.sqrt(1. + 4. * t_prev * t_prev)) * 0.5
+            U1 = V1 + ((t_prev - 1.) / t) * (V1 - V1_prev)
+            U2 = V2 + ((t_prev - 1.) / t) * (V2 - V2_prev)
+
+            if gap <= precision:
+                break
+
+        return primal
+
+    def _total_variation(self, x):
+        if self.weights is None:
+            self.weights = np.ones(x.shape[1] - 1)
+        res = 0
+        n, p = x.shape
+        for i in range(n):
+            for j in range(1, p):
+                res += self.weights[j-1]*abs(x[i,j] - x[i, j-1])
+        return res
+
+    def make_grid(self, low=0.001, high=1, number=10, weights=None):
+        values = np.logspace(np.log10(low), np.log10(high), number)
+        l = []
+        for (i, v) in enumerate(values):
+            l.append(TVPenalty(v, weights))
+        return l
+
+    def __str__(self):
+        return "TVPenalty(" + str(self._lambda) +")"
+
+    def value(self, x):
+        return self._lambdaTV*self._total_variation(x) + \
+               self._lambda1*np.linalg.norm(x, 1)
 

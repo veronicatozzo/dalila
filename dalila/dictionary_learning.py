@@ -261,10 +261,10 @@ class DictionaryLearning(BaseEstimator):
             if backtracking:
                 d, c = self._update_with_backtracking(d, c, gradient_d,
                                                       gradient_c, step_d,
-                                                      step_c)
+                                                      step_c, i)
             else:
                 d, c = self._simple_update(d, c, gradient_d, gradient_c,
-                                           step_d, step_c)
+                                           step_d, step_c, i)
 
             new_objective = self.objective_function_value(d=d, c=c)
             difference_objective = new_objective - objective
@@ -298,13 +298,15 @@ class DictionaryLearning(BaseEstimator):
         return d, c
 
     def _simple_update(self, d, c, gradient_d, gradient_c,
-                       step_d, step_c):
+                       step_d, step_c, i):
         d = self.dict_penalty. \
-            apply_prox_operator(d - step_d * gradient_d, gamma=step_d)
+            apply_prox_operator(d - step_d * gradient_d, gamma=step_d,
+                                precision=1/((i+1)**2))
         d = non_negative_projection(d, self.non_negativity, 'dict')
 
         c = self.coeff_penalty. \
-            apply_prox_operator(c - step_c * gradient_c, gamma=step_c)
+            apply_prox_operator(c - step_c * gradient_c, gamma=step_c,
+                                precision=1/((i+1)**2))
         c = non_negative_projection(c, self.non_negativity, 'coeff')
         return d, c
 
@@ -318,12 +320,14 @@ class DictionaryLearning(BaseEstimator):
         for i in range(1, 1000):
             # compute new matrices
             d_1 = self.dict_penalty. \
-                apply_prox_operator(d_0 - step_d * gradient_d, gamma=step_d)
+                apply_prox_operator(d_0 - step_d * gradient_d, gamma=step_d,
+                                    precision=1/((i+1)**2))
             d_1 = non_negative_projection(d_1, self.non_negativity, 'dict')
             difference_d = np.linalg.norm(d_1 - d_0)
 
             c_1 = self.coeff_penalty. \
-                apply_prox_operator(c_0 - step_c * gradient_c, gamma=step_c)
+                apply_prox_operator(c_0 - step_c * gradient_c, gamma=step_c,
+                                    precision=1/((i+1)**2))
             c_1 = non_negative_projection(c_1, self.non_negativity, 'coeff')
             difference_c = np.linalg.norm(c_1 - c_0)
 
