@@ -518,6 +518,339 @@ class StabilityDictionaryLearning(DictionaryLearning):
         return self.stability
 
 
+###############################################################################
+class DiscriminativeDictionaryLearning(DictionaryLearning): #TODO: controllare che non debba essere transfromestimator
+    """ An estimator for discriminative dictionary learning.
+
+        This estimator optimises a functional of the following form:
+
+        (1/2)||X - CD||_F^2 + ||Y - CB||_F^2 + phi(D) + psi(C) + theta(B) #TODO: cambiare il fatto che non e' sempre square loss
+
+        where the norm of the reconstruction errors are Frobenious matrix norm
+        and the functions phi, psi and theta are a combination of penalties
+        that act row-wise on D and C and on the vector B.
+        It is possible to specify which kind of penalties you want to use on
+        the matrices, if there must be a non-negativity constraint and if the
+        atoms in the dictionary must have norm equal to one.
+
+        Parameters
+        ----------
+
+        k: int
+            Number of atoms in which decompose the input matrix.
+
+        dict_penalty : a sub-class of Penalty in penalty.py file, optional
+            It is applied on the dictionary and it can be L0Penalty,
+            L1Penalty, L2Penalty, ElasticNetPenalty, GroupLassoPenalty
+
+        coeff_penalty: a sub-class of Penalty class in penalty.py file,
+            optional
+            It is applied on the coefficients and it can be L0Penalty,
+            L1Penalty, L2Penalty, ElasticNetPenalty, GroupLassoPenalty,
+            LInfPenalty
+
+        beta_penalty: a sub-class of Penalty class in penalty.py file, optional
+            It is applied on the classification coefficients and it can be
+            L0Penalty, L1Penalty, L2Penalty, ElasticNetPenalty
+
+        dict_normalization: int, optional
+            If different than zero the atoms are normalized to have l2-norm
+            equal to 1.
+
+        non_negativity: string, optional
+            If 'none' (default) the atoms and the coefficients can be both
+            non negative.
+            If 'both' non-negativity is applied on both matrices.
+            if 'coeff' non-negativity is applied only on the matrix of the
+            coefficients.
+
+        random_state: RandomState or int
+            Seed to be use to initialise np.random.RandomState. If None each
+            time RandomState is randomly initialised.
+
+       """
+
+    def __init__(self, k, dict_penalty=None, coeff_penalty=None,
+                 beta_penalty=None, dict_normalization=0,
+                 non_negativity='none', random_state=None):
+        super(DiscriminativeDictionaryLearning, self) \
+            .__init__(k, dict_penalty, coeff_penalty, dict_normalization,
+                      non_negativity, random_state)
+        self.beta_penalty = beta_penalty
+        self.Y = None
+        self.B = None
+
+    def fit(self, x, y, n_iter=20000, backtracking=0):
+
+        """Function that fits the estimator on the matrix X.
+
+        This function finds the decomposition in dictionary and coefficients
+        and the classification coefficients with an alternating proximal
+        gradient algorithm. It iteratively computes the gradient on one of the
+        three matrices by keeping the others fixed and then apply the prox
+        operator of the specified penalty.
+        If the flat non-negative is set it project the rows of the matrices C
+        and D to the positive space, while if the dict_normalization flag is
+        set the rows of the dictionaries are normalised to have l2-norm equal
+        to 1.
+
+        Parameters
+        ----------
+
+        x : array-like or sparse matrix shape =  (n_samples, n_features)
+            The matrix to decompose.
+
+        y:
+            array-like or sparse matrix, shape(n_samples, 1)
+
+        n_iter: int, optional
+            Maximum number of iterations the algorithm does before stopping.
+
+        backtracking: bool, optional
+            If True a procedure of backtracking is done on the step in order
+            to avoid an increasing in the objective function.
+
+        Returns
+        -------
+        self : object
+
+        """
+
+        # ______________ parameters control________________________________#
+        x = check_array(x)
+        y = check_array(y)
+        self.X = x
+        n, p = x.shape
+        self.Y = np.reshape(y, (n, 1))
+
+        random_state = check_random_state(self.random_state)
+        self.dict_penalty = _check_penalty(self.dict_penalty)
+        self.coeff_penalty = _check_penalty(self.coeff_penalty)
+        self.beta_penalty = _check_penalty(self.beta_penalty)
+        _check_number_of_atoms(self.k, p, n)
+        _check_non_negativity(self.non_negativity, x)
+
+        logging.debug("Starting procedure with " +
+                      str(self.k)+" number of atoms")
+        logging.debug("Initializing dictionary and coefficients..")
+
+        # ________________optimization procedure____________________________#
+        self.D, self.C, self.B = \
+            self._alternating_proximal_gradient_minimization(random_state,
+                n_iter=n_iter, backtracking=backtracking)
+
+        if self.dict_normalization:
+            for k in range(self.k):
+                normalization_factor = np.linalg.norm(self.D[k, :])
+                self.D[k, :] /= normalization_factor
+                self.C[:, k] *= normalization_factor
+                self.B[k] /= normalization_factor
+
+        # __________________________final controls__________________________#
+        logging.debug("Finished optimization")
+        if self.non_negativity == 'both':
+            assert (np.min(self.D) >= 0 and np.min(self.C) >= 0)
+        if self.non_negativity == 'coeff':
+            assert (np.min(self.C) >= 0)
+
+        return self
+
+    def reconstruction_error(self):
+        """
+        Returns
+        -------
+        float:
+            The reconstruction error for the current decomposition of the
+            matrix. If no decomposition was run infinity is returned.
+            A lower reconstruction error corresponds to a better approximation
+            of the input data.
+        """
+
+        if self.X is None:
+            return float("inf")
+        return (np.linalg.norm(self.X - self.C.dot(self.D)) /
+                np.linalg.norm(self.X))
+
+    def objective_function_value(self, x=None, y=None,
+                                 d=None, c=None, b = None):
+        """
+
+        Parameters
+        ----------
+        x : array-like, shape=(n_samples, n_features)
+            The matrix to be decomposed.
+
+        y : array-like, shape=(n_samples, 1)
+            The matrix of the coefficients or the regression values.
+
+        d: array_like, shape=(n_atoms, n_features)
+            The dictionary.
+
+        c: array-like, shape=(n_samples, n_atoms)
+            The matrix of coefficients
+
+        b: array-like, shape=(n_atoms, 1)
+            The matrix of classification/regression coefficients.
+
+        If one of the three is None the internal decomposition is taken, if no
+        decomposition is available NaN is returned.
+
+        Returns
+        -------
+        float:
+            The value of the objective function.
+        """
+        if x is None:
+            x = self.X
+            if x is None:
+                logging.warning('Called objective function value with no'
+                                'matrices before calling fit. \n'
+                                'Impossible to return an objective function '
+                                'value')
+                return float('NaN')
+
+        if y is None:
+            y = self.Y
+            if y is None:
+                logging.warning('Called objective function value with no'
+                                'matrices before calling fit. \n'
+                                'Impossible to return an objective function '
+                                'value')
+                return float('NaN')
+
+        if d is None:
+            d = self.D
+        if c is None:
+            c = self.C
+        if b is None:
+            b = self.B
+
+        reconstruction_1 = np.linalg.norm(x - c.dot(d))**2
+        reconstruction_2 = np.log(1+ np.exp(-y.T.dot(c.dot(b))))
+        penalty_dictionary = self.dict_penalty.value(d)
+        penalty_coefficient = self.coeff_penalty.value(c)
+        penalty_regression = self.beta_penalty.value(b)
+        return reconstruction_1 + reconstruction_2 + \
+               penalty_coefficient + penalty_dictionary + penalty_regression
+
+    def decomposition(self):
+        """
+        Returns
+        -------
+
+        C: array-like, shape = (n_samples, k)
+            The learnt coefficients.
+
+        D: array_like, shape = (k, n_features)
+            The learnt dictionary.
+
+        B: array_like, shape=(k, 1)
+            The learnt regression/classification coefficients.
+
+        """
+        return self.C, self.D, self.B
+
+    def score(self, *args):
+        """
+        Parameters
+        ----------
+
+        *args: optional
+            Introduced for compatibility with sklearn GridSearchCV
+
+        Returns
+        -------
+        float
+            The score of the current decomposition. BIC value computed as
+            -log(k)*log(n_samples) - 2.3*(self.objective_function_value())
+            the highest is the score and better the decomposition is.
+        """
+
+        if self.X is None:
+            return float("-inf")
+        return - (np.log(self.X.shape[0])*self.k \
+                    + 2 * np.linalg.norm(self.X - self.C.dot(self.D))**2) #TODO: NON MI E' BEN CHIARO COSA DOVREI ADOTTARE
+
+    def _alternating_proximal_gradient_minimization(self, random_state,
+                                                    n_iter=2000,
+                                                    backtracking=0):
+        x = self.X
+        y = self.Y
+        n, p = x.shape
+        d = non_negative_projection(random_state.rand(self.k, p)*10-5,
+                                    self.non_negativity, 'dict')
+        c = non_negative_projection(random_state.rand(n, self.k)*10-5,
+                                    self.non_negativity, 'coeff')
+        b = random_state.rand(self.k, 1)
+
+        gamma_c = 1.1
+        gamma_d = gamma_c
+        #step_d, step_c = _step_lipschitz(d, c,
+         #                                gamma_d=gamma_d, gamma_c=gamma_c)
+
+        step_d = 0.0001
+        step_c = 0.0001
+        step_b = 0.0001
+        epsilon = 1e-4
+        objective = self.objective_function_value(d=d, c=c, b=b)
+
+        d_old = d
+        c_old = c
+        b_old = b
+        logging.debug("Starting optimization")
+        for i in range(n_iter):
+            gradient_d = c.T.dot(c.dot(d) - x)
+            gradient_c = (c.dot(d) - x).dot(d.T) + \
+                         (-y.dot(b.T)*np.exp(-y.T.dot(c.dot(b))) /
+                          1 + np.exp(-y.T.dot(c.dot(b))))
+            gradient_b = (-c.T.dot(y)*np.exp(-y.T.dot(c.dot(b))) /
+                          1 + np.exp(-y.T.dot(c.dot(b))))
+
+            d = self.dict_penalty. \
+                apply_prox_operator(d - step_d * gradient_d, gamma=step_d)
+            d = non_negative_projection(d, self.non_negativity, 'dict')
+
+            c = self.coeff_penalty. \
+                apply_prox_operator(c - step_c * gradient_c, gamma=step_c)
+            c = non_negative_projection(c, self.non_negativity, 'coeff')
+
+            b = self.coeff_penalty. \
+                apply_prox_operator(b - step_b * gradient_b, gamma=step_b)
+
+            new_objective = self.objective_function_value(d=d, c=c, b=b)
+            difference_objective = new_objective - objective
+            objective = new_objective
+            difference_d = np.linalg.norm(d - d_old)
+            difference_c = np.linalg.norm(c - c_old)
+            difference_b = np.linalg.norm(b - b_old)
+            d_old = d
+            c_old = c
+            b_old = b
+
+            #step_d, step_c = _step_lipschitz(d, c,
+            #                                 gamma_c=gamma_c, gamma_d=gamma_d)
+
+            logging.debug("Iteration: "+str(i))
+            logging.debug("Objective function: "+str(objective))
+            logging.debug("Difference between new objective and "
+                          "previous one: "+str(difference_objective))
+            logging.debug("Difference between previous and new dictionary: " +
+                          str(difference_d))
+            logging.debug("Difference between previous and new coefficients:" +
+                          str(difference_c)+"`\n\n")
+
+            assert ((not np.isnan(difference_objective)) and
+                    (not np.isinf(difference_objective)) and
+                    (abs(difference_objective) < 1e+20))
+
+            if (abs(difference_d) <= epsilon and
+                abs(difference_c) <= epsilon and
+                abs(difference_b) <= epsilon):
+                break
+
+        return d, c, b
+
+
 # ____________________________UTILITY FUNCTIONS_______________________________
 def _step_lipschitz(d, c, gamma_d,  gamma_c):
     step_c = max(0.0001, gamma_c * np.linalg.norm(d.T.dot(d)))
