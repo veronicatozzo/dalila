@@ -1,6 +1,6 @@
 import numpy as np
 
-from dalila.dataset_generator import *
+from dalila.dl.dataset_generator import *
 
 
 def group_lasso_generator_test():
@@ -27,5 +27,3 @@ def synthetic_data_non_negative_generator_test():
     assert S.shape == (80, 96)
     assert D.shape == (7, 96)
     assert C.shape == (80, 7)
-
-

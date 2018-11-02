@@ -1,11 +1,11 @@
 import numpy as np
 from nose.tools import *
 
-from dalila.parameters_research import tune_parameters_DL, tune_parameters_RL
-from dalila.dictionary_learning import DictionaryLearning
-from dalila.representation_learning import RepresentationLearning
-from dalila.penalty import L1Penalty
-from dalila.dataset_generator import synthetic_data_negative
+from dalila.dl.parameters_research import tune_parameters_DL, tune_parameters_RL
+from dalila.dl.dictionary_learning import DictionaryLearning
+from dalila.dl.representation_learning import RepresentationLearning
+from dalila.dl.penalty import L1Penalty
+from dalila.dl.dataset_generator import synthetic_data_negative
 
 
 @raises(TypeError)
@@ -55,7 +55,3 @@ def wrong_range_test():
                                        non_negativity=1)
     tune_parameters_RL(X, estimator, distributed=0,
                              coeff_penalty_range=(0.0001, 1))
-
-
-
-

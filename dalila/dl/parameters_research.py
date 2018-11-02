@@ -9,8 +9,8 @@ from sklearn.model_selection import GridSearchCV, ShuffleSplit
 from sklearn.utils import check_array, check_random_state
 from multiprocessing import cpu_count
 
-from dalila.dictionary_learning import DictionaryLearning
-from dalila.representation_learning import RepresentationLearning
+from dalila.dl.dictionary_learning import DictionaryLearning
+from dalila.dl.representation_learning import RepresentationLearning
 from dalila.utils import _check_non_negativity, MonteCarloBootstrap
 
 

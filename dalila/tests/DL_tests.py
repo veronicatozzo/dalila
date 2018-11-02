@@ -2,9 +2,9 @@
 from nose.tools import *
 import numpy as np
 
-from dalila.dictionary_learning import DictionaryLearning,\
+from dalila.dl.dictionary_learning import DictionaryLearning,\
                                        StabilityDictionaryLearning
-from dalila.dataset_generator import *
+from dalila.dl.dataset_generator import *
 
 @raises(TypeError)
 def wrong_penalty_type_coeff_test():

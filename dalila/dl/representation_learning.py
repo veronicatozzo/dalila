@@ -8,7 +8,7 @@ from sklearn.utils import check_array
 from sklearn.utils import check_random_state
 
 from dalila.utils import non_negative_projection
-from dalila.dictionary_learning import _check_penalty
+from dalila.dl.dictionary_learning import _check_penalty
 
 
 class RepresentationLearning(BaseEstimator):
@@ -282,8 +282,3 @@ class RepresentationLearning(BaseEstimator):
 def _step_lipschitz(d, gamma_c):
     step_c = max(0.0001, gamma_c * np.linalg.norm(d.T.dot(d)))
     return 1/step_c
-
-
-
-
-

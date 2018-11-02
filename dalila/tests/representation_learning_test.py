@@ -1,8 +1,8 @@
 from nose.tools import *
 import numpy as np
 
-from dalila.representation_learning import RepresentationLearning
-from dalila.dataset_generator import synthetic_data_non_negative
+from dalila.dl.representation_learning import RepresentationLearning
+from dalila.dl.dataset_generator import synthetic_data_non_negative
 
 
 @raises(TypeError)

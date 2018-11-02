@@ -1,7 +1,7 @@
 from nose.tools import *
 import numpy as np
 
-from dalila.penalty import *
+from dalila.dl.penalty import *
 
 
 @raises(ValueError)

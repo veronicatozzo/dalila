@@ -10,7 +10,7 @@ from sklearn.utils import check_random_state
 
 from dalila.utils import non_negative_projection, _check_non_negativity,\
                          _compute_clusters_and_silhouettes
-from dalila.penalty import Penalty
+from dalila.dl.penalty import Penalty
 
 
 ###############################################################################
@@ -556,5 +556,3 @@ def _sampling(X, random_state):  # sampling with replacement
     selected = random_state.randint(0, high=X.shape[0],
                                     size=(X.shape[0]))
     return X[selected, :]
-
-
