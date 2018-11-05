@@ -4,6 +4,15 @@ import numpy as np
 from itertools import combinations
 from sklearn.cluster import KMeans
 
+
+def jaccard_index(A, B):
+    A = set(A)
+    B = set(B)
+    intr = A.intersection(B)
+    union = A.union(B)
+    return len(list(intr))/len(list(union))
+
+
 def get_clusters(G, mode='hard'):
     """
     Params
