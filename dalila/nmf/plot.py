@@ -20,3 +20,14 @@ def plot_keplen_meier_curves(clusters, status, survival, ax, filename=""):
     if filename != "":
         plt.savefig(filename)
     plt.show()
+
+
+def plot_jaccard_matrix(M, labels_x, labels_y, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(15,10))
+
+    ax.imshow(M, vmin=0, vmax=1)
+    ax.set_xticks(labels_x)
+    ax.set_yticks(labels_y)
+    ax.colorbar()
+    plt.show()

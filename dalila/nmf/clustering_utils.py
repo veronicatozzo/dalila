@@ -1,8 +1,14 @@
 from __future__ import division
 
+import operator
+
 import numpy as np
 from itertools import combinations
-from sklearn.cluster import KMeans
+from lifelines.statistics import multivariate_logrank_test, pairwise_logrank_test
+from lifelines.utils import survival_table_from_events
+from lifelines import KaplanMeierFitter
+
+from sklearn.cluster import KMeans, SpectralClustering
 
 
 def jaccard_index(A, B):
@@ -11,6 +17,52 @@ def jaccard_index(A, B):
     intr = A.intersection(B)
     union = A.union(B)
     return len(list(intr))/len(list(union))
+
+
+def jaccard_matrix(clusters1, clusters2):
+    groups1 = []
+    for i in np.unique(clusters1):
+        groups1.append(np.where(clusters1==i)[0])
+    groups2 = []
+    for i in np.unique(clusters2):
+        groups2.append(np.where(clusters2==i)[0])
+
+    res = np.zeros((len(groups1), len(groups2)))
+    for i in range(len(groups1)):
+        for j in range(len(groups2)):
+            res[i,j] = jaccard_index(groups1[i], groups2[j])
+    return res
+
+
+def aggragate_clusters_on_pvalue(clusters, survival, status):
+    new_clusters = clusters.copy()
+    p_values = []
+    many = []
+    layers = []
+    while len(np.unique(new_clusters))>1:
+        numbers_at_risk.append([])
+        res_pair = pairwise_logrank_test(survival, new_clusters, status)
+        pairs = {}
+        for i in range(res_pair.shape[0]):
+            for j in range(i+1, res_pair.shape[0]):
+                pairs[res_pair.index[i],res_pair.columns[j]] = res_pair.iloc[i,j].p_value
+        sorted_x = sorted(pairs.items(), key=operator.itemgetter(1))
+        e = sorted_x[-1]
+        aux = new_clusters.copy()
+        aux[np.where(new_clusters==e[0][1])[0]] = e[0][0]
+        layers.append(aux)
+        new_clusters = aux.copy()
+        res = multivariate_logrank_test(survival, new_clusters, status)
+        many.append(len(np.unique(new_clusters)))
+        p_values.append(res.p_value)
+
+    return zip(layers, many, p_values)
+
+def spectral_clustering(G):
+    SP = SpectralClustering(affinity='precomputed')
+    SP.fit(self.adjacency)
+    self.labels_ = SP.labels_
+    return self.labels_
 
 
 def get_clusters(G, mode='hard'):
